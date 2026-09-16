@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8"><title>Edytor obrazu</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:#1a1a1e; color:#e8e8ea;
+         display:grid; grid-template-columns:300px 1fr; height:100vh; overflow:hidden; }
+  aside { background:#111114; padding:16px; border-right:1px solid #2a2a30; overflow-y:auto; }
+  main  { display:flex; flex-direction:column; overflow:hidden; }
+  h1 { font-size:14px; margin:0 0 14px; color:#a8a8b3; text-transform:uppercase; letter-spacing:1px; }
+  .group { margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid #2a2a30; }
+  .group:last-child { border-bottom:none; margin-bottom:0; }
+  .group h3 { font-size:11px; text-transform:uppercase; color:#7a7a86; margin:0 0 8px; letter-spacing:.5px; }
+  button { padding:6px 10px; background:#2a2a32; color:#e8e8ea; border:1px solid #3a3a44;
+           border-radius:6px; cursor:pointer; font-size:12px; transition:.12s; }
+  button:hover:not(:disabled) { background:#3a3a44; }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  button.primary { background:#3a5cff; border-color:#3a5cff; }
+  button.primary:hover:not(:disabled) { background:#4a6cff; }
+  button.locked { background:#3a5cff; border-color:#3a5cff; }
+  button.press.held { background:#3a5cff; border-color:#3a5cff; }
+  button.preset {
+    padding:10px 6px; font-size:12px; font-weight:500;
+    background:#1e1e24; border:1px solid #2a2a30;
+  }
+  button.preset:hover:not(:disabled) {
+    background:#25253a; border-color:#3a5cff; transform:translateY(-1px);
+  }
+  .row { display:flex; gap:5px; margin-bottom:6px; }
+  .row button { flex:1; min-width:50px; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:6px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; margin-bottom:6px; }
+  label.slider { display:grid; grid-template-columns:78px 1fr 38px; gap:6px; align-items:center;
+                 font-size:12px; margin:5px 0; }
+  label.row-flex { display:grid; grid-template-columns:78px 1fr; gap:6px; align-items:center;
+                   font-size:12px; margin:5px 0; }
+  input[type=range] { width:100%; accent-color:#3a5cff; }
+  input[type=checkbox] { accent-color:#3a5cff; }
+  .check { display:flex; align-items:center; gap:6px; font-size:13px; margin:5px 0; cursor:pointer; }
+  .num-input { display:grid; grid-template-columns:1fr auto 1fr; gap:6px; align-items:center; margin:6px 0; }
+  .num-input input, .text-input {
+    width:100%; padding:6px; background:#1e1e24; color:#e8e8ea;
+    border:1px solid #3a3a44; border-radius:5px; font-size:12px;
+  }
+  .text-input:focus { outline:none; border-color:#3a5cff; }
+  .file-btn {
+    display:block; padding:16px; background:#1e1e24; color:#e8e8ea; border:2px dashed #3a3a44;
+    border-radius:8px; text-align:center; cursor:pointer; font-size:14px; font-weight:500;
+    margin-bottom:10px; transition:.15s;
+  }
+  .file-btn:hover { border-color:#3a5cff; color:#3a5cff; background:#1a1a2a; }
+  .file-btn small { display:block; font-weight:400; font-size:11px; color:#7a7a86; margin-top:4px; }
+  input[type=file] { display:none; }
+  .hint { color:#5a5a66; font-size:11px; text-align:center; }
+  .hint.mono { font-family:ui-monospace, monospace; color:#7a7a86; }
+  #histogram { width:100%; height:70px; display:block; background:#0a0a0e; border-radius:5px;
+               border:1px solid #2a2a30; margin-top:4px; }
+
+  #toolbar { flex:0 0 auto; padding:6px 12px; background:#0e0e12; border-bottom:1px solid #2a2a30;
+             display:flex; gap:6px; align-items:center; }
+  #toolbar .spacer { flex:1; }
+  #toolbar #zoom-label { font-size:12px; color:#a8a8b3; min-width:46px; text-align:center;
+                          font-family:ui-monospace, monospace; }
+  #viewport { flex:1; overflow:hidden; position:relative; background:#0a0a0e; cursor:default;
+              user-select:none; }
+  #viewport.pan-ready { cursor:grab; }
+  #viewport.panning   { cursor:grabbing; }
+  #stage { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
+  #display { display:block; background:#000; }
+  #overlay { position:absolute; top:0; left:0; pointer-events:none; }
+  #overlay.active { pointer-events:auto; cursor:crosshair; }
+  #empty-state {
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:14px; pointer-events:none; color:#4a4a56; text-align:center;
+    padding:40px;
+  }
+  #empty-state.hidden { display:none; }
+  #empty-state .big { font-size:80px; line-height:1; opacity:.4; }
+  #empty-state h2 { font-size:22px; color:#7a7a86; margin:0; font-weight:600; }
+  #empty-state p { margin:0; font-size:14px; max-width:340px; line-height:1.5; }
+  #empty-state kbd { background:#1e1e24; border:1px solid #3a3a44; padding:2px 6px;
+                     border-radius:4px; font-family:ui-monospace,monospace; font-size:12px; color:#a8a8b3; }
+  #statusbar { flex:0 0 auto; padding:4px 12px; background:#0e0e12; border-top:1px solid #2a2a30;
+               display:flex; justify-content:space-between; font-size:11px; color:#7a7a86;
+               font-family:ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Edytor obrazu</h1>
+
+  <div class="group">
+    <label class="file-btn" for="file">
+      📁 Wczytaj obraz
+      <small>albo przeciągnij tutaj / wklej Ctrl+V</small>
+    </label>
+    <input type="file" id="file" accept="image/*">
+    <div class="row">
+      <button id="undo" disabled>↶ Cofnij</button>
+      <button id="redo" disabled>↷ Ponów</button>
+    </div>
+    <div class="row"><button id="reset" disabled>🔄 Przywróć oryginał</button></div>
+  </div>
+
+  <div class="group">
+    <h3>✨ Szybkie ulepszenia</h3>
+    <div class="grid-2">
+      <button class="preset" data-preset="bright"  disabled>☀️ Jaśniej</button>
+      <button class="preset" data-preset="dark"    disabled>🌙 Ciemniej</button>
+      <button class="preset" data-preset="vivid"   disabled>🎨 Wyraziste</button>
+      <button class="preset" data-preset="warm"    disabled>🔥 Ciepłe</button>
+      <button class="preset" data-preset="cool"    disabled>❄️ Zimne</button>
+      <button class="preset" data-preset="bw"      disabled>⚫ Cz.-białe</button>
+      <button class="preset" data-preset="vintage" disabled>📷 Vintage</button>
+      <button class="preset" data-preset="soft"    disabled>💧 Miękkie</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Obracanie i kadrowanie</h3>
+    <div class="row">
+      <button id="rot-ccw" disabled>↺ -90°</button>
+      <button id="rot-cw"  disabled>↻ +90°</button>
+      <button id="rot-180" disabled>180°</button>
+    </div>
+    <div class="row">
+      <button id="flip-h" disabled>↔ Odbij H</button>
+      <button id="flip-v" disabled>↕ Odbij V</button>
+    </div>
+    <div style="font-size:11px;color:#7a7a86;margin:8px 0 4px;">Obrót o dowolny kąt</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+      <input type="range" id="rot-angle" min="-45" max="45" step="0.5" value="0" style="flex:1" disabled>
+      <input type="number" id="rot-angle-num" min="-180" max="180" step="0.5" value="0"
+             style="width:64px;padding:5px;background:#1e1e24;color:#e8e8ea;border:1px solid #3a3a44;border-radius:5px;font-size:12px" disabled>
+      <span style="font-size:12px;color:#a8a8b3">°</span>
+    </div>
+    <label class="check"><input type="checkbox" id="rot-autocrop" checked disabled> Przytnij czarne rogi</label>
+    <div class="row"><button id="rot-apply" class="primary" disabled>Obróć o kąt</button></div>
+    <div class="row" style="margin-top:6px"><button id="crop" disabled>✂ Kadruj myszką</button></div>
+    <div id="crop-actions" style="display:none">
+      <div class="row">
+        <button class="primary" id="crop-apply">Zastosuj kadr</button>
+        <button id="crop-cancel">Anuluj</button>
+      </div>
+    </div>
+    <div class="num-input">
+      <input type="number" id="resize-w" placeholder="szer." min="1" disabled>
+      <span style="color:#7a7a86;font-size:11px">×</span>
+      <input type="number" id="resize-h" placeholder="wys." min="1" disabled>
+    </div>
+    <div class="row">
+      <button id="resize-apply" disabled>Zmień rozmiar</button>
+      <button id="resize-lock" class="locked" style="flex:0 0 40px" title="Blokuj proporcje">🔗</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Jasność i kolor</h3>
+    <label class="slider"><span>Jasność</span><input type="range" id="s-brightness" min="0" max="200" value="100" disabled><span id="v-brightness">100</span></label>
+    <label class="slider"><span>Kontrast</span><input type="range" id="s-contrast" min="0" max="200" value="100" disabled><span id="v-contrast">100</span></label>
+    <label class="slider"><span>Nasycenie</span><input type="range" id="s-saturate" min="0" max="200" value="100" disabled><span id="v-saturate">100</span></label>
+    <label class="slider"><span>Odcień</span><input type="range" id="s-hue" min="-180" max="180" value="0" disabled><span id="v-hue">0</span></label>
+    <label class="slider"><span>Rozmycie</span><input type="range" id="s-blur" min="0" max="20" value="0" step="0.5" disabled><span id="v-blur">0</span></label>
+    <label class="check"><input type="checkbox" id="s-gray" disabled> Odcienie szarości</label>
+    <label class="check"><input type="checkbox" id="s-sepia" disabled> Sepia</label>
+    <label class="check"><input type="checkbox" id="s-invert" disabled> Negatyw</label>
+    <div class="grid-3">
+      <button id="adjust-reset" disabled>↺ Reset</button>
+      <button id="auto-contrast" disabled title="Automatycznie poprawia kontrast i jasność">🪄 Auto kontrast</button>
+      <button id="auto-color" disabled title="Automatycznie koryguje zafarb kolorów (balans bieli)">🎨 Auto kolor</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Efekty</h3>
+    <div class="grid-2">
+      <button data-effect="pixelate"  disabled>Pixelate</button>
+      <button data-effect="posterize" disabled>Posterize</button>
+      <button data-effect="threshold" disabled>Threshold</button>
+      <button data-effect="sharpen"   disabled>Wyostrz</button>
+      <button data-effect="edge"      disabled>Krawędzie</button>
+      <button data-effect="vignette"  disabled>Winieta</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Histogram</h3>
+    <canvas id="histogram"></canvas>
+  </div>
+
+  <div class="group">
+    <h3>Zapis pliku</h3>
+    <label class="row-flex">
+      <span>Nazwa</span>
+      <input type="text" id="export-name" class="text-input" value="moj-obraz"
+             placeholder="nazwa pliku" maxlength="80">
+    </label>
+    <div class="hint mono" id="name-preview">moj-obraz.png</div>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="export-png"  disabled>Zapisz PNG</button>
+      <button id="export-jpg" disabled>JPG</button>
+      <button id="export-webp" disabled>WebP</button>
+    </div>
+    <label class="slider"><span>Jakość</span><input type="range" id="quality" min="0.1" max="1" step="0.05" value="0.92"><span id="v-quality">0.92</span></label>
+    <div class="hint">Jakość dotyczy JPG i WebP</div>
+  </div>
+</aside>
+
+<main>
+  <div id="toolbar">
+    <button id="tool-select" class="primary" title="Zaznaczanie i kadrowanie">🖱</button>
+    <button id="tool-pipette" title="Pipeta — kliknij w obraz, żeby skopiować kolor HEX">💧</button>
+    <span class="spacer"></span>
+    <button id="zoom-out" title="Pomniejsz">−</button>
+    <span id="zoom-label">100%</span>
+    <button id="zoom-in" title="Powiększ">+</button>
+    <button id="zoom-fit" title="Dopasuj do okna (Ctrl+0)">Fit</button>
+    <button id="zoom-1-1" title="Rozmiar rzeczywisty (Ctrl+1)">1:1</button>
+    <span class="spacer"></span>
+    <button id="before-btn" class="press" title="Przytrzymaj, żeby zobaczyć oryginał (lub klawisz \)">👁 Przed / Po</button>
+  </div>
+  <div id="viewport">
+    <div id="empty-state">
+      <div class="big">🖼️</div>
+      <h2>Zacznij od wczytania obrazu</h2>
+      <p>Przeciągnij plik tutaj, wklej ze schowka <kbd>Ctrl</kbd>+<kbd>V</kbd>, albo kliknij <b>„Wczytaj obraz"</b> w panelu po lewej.</p>
+      <p style="font-size:12px;color:#5a5a66">Potem skorzystaj z gotowych ulepszeń („Jaśniej", „Ciepłe", „Wyraziste"…) — jeden klik, jedna zmiana. Nie podoba się? <b>Cofnij</b>.</p>
+    </div>
+    <div id="stage">
+      <canvas id="display"></canvas>
+      <canvas id="overlay"></canvas>
+    </div>
+  </div>
+  <div id="statusbar">
+    <span id="cursor-info">—</span>
+    <span id="size-info">—</span>
+  </div>
+</main>
+
+<script>
+(() => {
+  // ===== DOM =====
+  const display = document.getElementById('display');
+  const overlay = document.getElementById('overlay');
+  const dctx = display.getContext('2d');
+  const octx = overlay.getContext('2d');
+  const viewport = document.getElementById('viewport');
+  const stage    = document.getElementById('stage');
+  const emptyState = document.getElementById('empty-state');
+  const $ = id => document.getElementById(id);
+  const cursorInfo = $('cursor-info');
+  const sizeInfo   = $('size-info');
+  const zoomLabel  = $('zoom-label');
+
+  // ===== Stan =====
+  let sourceCanvas = null;
+  let currentCanvas = null;
+  let currentImageData = null;
+  let ops = [];
+  let cursor = 0;
+  let cropMode = false, cropRect = null, cropStart = null, cropDrawing = false;
+  let lockAspect = true;
+  let tool = 'select';
+  let zoom = 1, panX = 0, panY = 0;
+  let spaceHeld = false, panning = false, panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
+  let lastFormat = 'png';
+
+  // ===== Operacje pikselowe =====
+  function pixelate(src, size) {
+    const w = Math.max(1, Math.round(src.width / size));
+    const h = Math.max(1, Math.round(src.height / size));
+    const small = document.createElement('canvas');
+    small.width = w; small.height = h;
+    small.getContext('2d').drawImage(src, 0, 0, w, h);
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const c = out.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.drawImage(small, 0, 0, w, h, 0, 0, out.width, out.height);
+    return out;
+  }
+
+  function posterize(src, levels) {
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const c = out.getContext('2d');
+    c.drawImage(src, 0, 0);
+    const img = c.getImageData(0, 0, out.width, out.height);
+    const d = img.data;
+    const step = 255 / (levels - 1);
+    for (let i = 0; i < d.length; i += 4) {
+      d[i]   = Math.round(d[i]   / step) * step;
+      d[i+1] = Math.round(d[i+1] / step) * step;
+      d[i+2] = Math.round(d[i+2] / step) * step;
+    }
+    c.putImageData(img, 0, 0);
+    return out;
+  }
+
+  function threshold(src, level) {
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const c = out.getContext('2d');
+    c.drawImage(src, 0, 0);
+    const img = c.getImageData(0, 0, out.width, out.height);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const l = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      const v = l >= level ? 255 : 0;
+      d[i] = d[i+1] = d[i+2] = v;
+    }
+    c.putImageData(img, 0, 0);
+    return out;
+  }
+
+  function convolve(src, kernel, divisor = 1, offset = 0) {
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const c = out.getContext('2d');
+    const srcData = src.getContext('2d').getImageData(0, 0, src.width, src.height);
+    const outData = c.createImageData(src.width, src.height);
+    const sd = srcData.data, od = outData.data;
+    const w = src.width, h = src.height;
+    const ks = Math.round(Math.sqrt(kernel.length));
+    const half = Math.floor(ks / 2);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let r = 0, g = 0, b = 0;
+        for (let ky = 0; ky < ks; ky++) {
+          for (let kx = 0; kx < ks; kx++) {
+            const px = Math.min(w-1, Math.max(0, x + kx - half));
+            const py = Math.min(h-1, Math.max(0, y + ky - half));
+            const idx = (py*w + px) * 4;
+            const kv = kernel[ky*ks + kx];
+            r += sd[idx] * kv; g += sd[idx+1] * kv; b += sd[idx+2] * kv;
+          }
+        }
+        const oi = (y*w + x) * 4;
+        od[oi]   = Math.max(0, Math.min(255, r / divisor + offset));
+        od[oi+1] = Math.max(0, Math.min(255, g / divisor + offset));
+        od[oi+2] = Math.max(0, Math.min(255, b / divisor + offset));
+        od[oi+3] = sd[oi+3];
+      }
+    }
+    c.putImageData(outData, 0, 0);
+    return out;
+  }
+
+  function vignette(src, strength) {
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const c = out.getContext('2d');
+    c.drawImage(src, 0, 0);
+    const g = c.createRadialGradient(
+      out.width/2, out.height/2, Math.min(out.width, out.height) * 0.30,
+      out.width/2, out.height/2, Math.max(out.width, out.height) * 0.72
+    );
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, `rgba(0,0,0,${strength})`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, out.width, out.height);
+    return out;
+  }
+
+  function autoContrast(src) {
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const c = out.getContext('2d');
+    c.drawImage(src, 0, 0);
+    const img = c.getImageData(0, 0, out.width, out.height);
+    const d = img.data;
+    let minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i]   < minR) minR = d[i];
+      if (d[i]   > maxR) maxR = d[i];
+      if (d[i+1] < minG) minG = d[i+1];
+      if (d[i+1] > maxG) maxG = d[i+1];
+      if (d[i+2] < minB) minB = d[i+2];
+      if (d[i+2] > maxB) maxB = d[i+2];
+    }
+    const rR = (maxR - minR) || 1, rG = (maxG - minG) || 1, rB = (maxB - minB) || 1;
+    for (let i = 0; i < d.length; i += 4) {
+      d[i]   = (d[i]   - minR) * 255 / rR;
+      d[i+1] = (d[i+1] - minG) * 255 / rG;
+      d[i+2] = (d[i+2] - minB) * 255 / rB;
+    }
+    c.putImageData(img, 0, 0);
+    return out;
+  }
+
+  // ==== AUTO KOLOR ====
+  // Algorytm "gray world": zakłada, że średnia kolorów na zdjęciu powinna być szara.
+  // Koryguje zafarb (np. żółtawy od żarówki, niebieskawy od cienia).
+  function autoColor(src) {
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const c = out.getContext('2d');
+    c.drawImage(src, 0, 0);
+    const img = c.getImageData(0, 0, out.width, out.height);
+    const d = img.data;
+
+    let sR = 0, sG = 0, sB = 0, n = 0;
+    // Krok 16 (co 4. piksel) — szybciej, statystycznie wystarczająco
+    for (let i = 0; i < d.length; i += 64) {
+      sR += d[i]; sG += d[i+1]; sB += d[i+2]; n++;
+    }
+    const mR = sR / n, mG = sG / n, mB = sB / n;
+    const target = (mR + mG + mB) / 3;
+
+    // Współczynniki, ale ograniczone — żeby nie zrobić krzywdy przy skrajnych zdjęciach
+    const clamp = v => Math.max(0.65, Math.min(1.55, v));
+    const kR = mR > 1 ? clamp(target / mR) : 1;
+    const kG = mG > 1 ? clamp(target / mG) : 1;
+    const kB = mB > 1 ? clamp(target / mB) : 1;
+
+    for (let i = 0; i < d.length; i += 4) {
+      d[i]   = Math.min(255, Math.max(0, d[i]   * kR));
+      d[i+1] = Math.min(255, Math.max(0, d[i+1] * kG));
+      d[i+2] = Math.min(255, Math.max(0, d[i+2] * kB));
+    }
+    c.putImageData(img, 0, 0);
+    return out;
+  }
+
+  // ==== OBRÓT O DOWOLNY KĄT (z opcją przycięcia czarnych rogów) ====
+  function rotateArbitrary(src, deg, autoCrop) {
+    const rad = deg * Math.PI / 180;
+    const cs = Math.abs(Math.cos(rad)), sn = Math.abs(Math.sin(rad));
+    let W = Math.round(src.width * cs + src.height * sn);
+    let H = Math.round(src.width * sn + src.height * cs);
+
+    if (autoCrop && Math.abs(deg) > 0.01) {
+      // Szukamy największego prostokąta o proporcjach oryginału,
+      // który zmieści się w obróconym obrazie (metoda bisekcji).
+      const aspect = src.width / src.height;
+      const OW = src.width / 2, OH = src.height / 2;
+      const c = Math.cos(-rad), s = Math.sin(-rad);
+      const fits = (testW, testH) => {
+        const hw = testW/2, hh = testH/2;
+        const corners = [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]];
+        for (const [x,y] of corners) {
+          const rx = x*c - y*s, ry = x*s + y*c;
+          if (Math.abs(rx) > OW + 0.5 || Math.abs(ry) > OH + 0.5) return false;
+        }
+        return true;
+      };
+      let lo = 0, hi = Math.min(src.width, src.height);
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(mid, mid / aspect)) lo = mid; else hi = mid;
+      }
+      W = Math.round(lo);
+      H = Math.round(lo / aspect);
+    }
+
+    const out = document.createElement('canvas');
+    out.width = W; out.height = H;
+    const c = out.getContext('2d');
+    c.translate(W/2, H/2);
+    c.rotate(rad);
+    c.drawImage(src, -src.width/2, -src.height/2);
+    return out;
+  }
+
+  // ===== applyOp =====
+  function applyOp(src, op) {
+    const out = document.createElement('canvas');
+    const c = out.getContext('2d');
+    switch (op.type) {
+      case 'rotate': {
+        const rad = op.deg * Math.PI / 180;
+        const cs = Math.abs(Math.cos(rad)), sn = Math.abs(Math.sin(rad));
+        out.width  = Math.round(src.width * cs + src.height * sn);
+        out.height = Math.round(src.width * sn + src.height * cs);
+        c.translate(out.width/2, out.height/2);
+        c.rotate(rad);
+        c.drawImage(src, -src.width/2, -src.height/2);
+        return out;
+      }
+      case 'rotateAny':   return rotateArbitrary(src, op.deg, op.autoCrop);
+      case 'flip': {
+        out.width = src.width; out.height = src.height;
+        c.translate(op.h ? out.width : 0, op.v ? out.height : 0);
+        c.scale(op.h ? -1 : 1, op.v ? -1 : 1);
+        c.drawImage(src, 0, 0);
+        return out;
+      }
+      case 'crop': {
+        out.width = op.w; out.height = op.h;
+        c.drawImage(src, op.x, op.y, op.w, op.h, 0, 0, op.w, op.h);
+        return out;
+      }
+      case 'resize': {
+        out.width = op.w; out.height = op.h;
+        c.imageSmoothingEnabled = true;
+        c.imageSmoothingQuality = 'high';
+        c.drawImage(src, 0, 0, op.w, op.h);
+        return out;
+      }
+      case 'filter': {
+        out.width = src.width; out.height = src.height;
+        c.filter = op.css;
+        c.drawImage(src, 0, 0);
+        c.filter = 'none';
+        return out;
+      }
+      case 'pixelate':     return pixelate(src, op.size);
+      case 'posterize':    return posterize(src, op.levels);
+      case 'threshold':    return threshold(src, op.level);
+      case 'sharpen':      return convolve(src, [0,-1,0,-1,5,-1,0,-1,0], 1, 0);
+      case 'edge':         return convolve(src, [0,-1,0,-1,4,-1,0,-1,0], 1, 0);
+      case 'vignette':     return vignette(src, op.strength);
+      case 'autoContrast': return autoContrast(src);
+      case 'autoColor':    return autoColor(src);
+    }
+    return src;
+  }
+
+  // ===== Render =====
+  function render() {
+    if (!sourceCanvas) return;
+    let cur = sourceCanvas;
+    for (let i = 0; i < cursor; i++) cur = applyOp(cur, ops[i]);
+    currentCanvas = cur;
+
+    display.width  = cur.width;
+    display.height = cur.height;
+    dctx.clearRect(0, 0, cur.width, cur.height);
+    dctx.drawImage(cur, 0, 0);
+
+    overlay.width  = cur.width;
+    overlay.height = cur.height;
+
+    try {
+      currentImageData = cur.getContext('2d').getImageData(0, 0, cur.width, cur.height);
+    } catch (_) { currentImageData = null; }
+
+    drawHistogram();
+    updateStatus();
+    updateButtons();
+    emptyState.classList.toggle('hidden', !!sourceCanvas);
+  }
+
+  function updateStatus() {
+    if (!sourceCanvas) { sizeInfo.textContent = '—'; return; }
+    sizeInfo.textContent = `${display.width} × ${display.height} px · zmian: ${cursor} · zoom: ${Math.round(zoom*100)}%`;
+  }
+
+  function updateButtons() {
+    const has = !!sourceCanvas;
+    ['rot-ccw','rot-cw','rot-180','flip-h','flip-v','crop','resize-apply',
+     'adjust-reset','auto-contrast','auto-color','export-png','export-jpg','export-webp','reset',
+     'resize-w','resize-h','rot-angle','rot-angle-num','rot-autocrop','rot-apply',
+     's-brightness','s-contrast','s-saturate','s-hue','s-blur','s-gray','s-sepia','s-invert'
+    ].forEach(id => { $(id).disabled = !has; });
+    document.querySelectorAll('[data-effect], [data-preset]').forEach(b => b.disabled = !has);
+    $('undo').disabled = cursor === 0;
+    $('redo').disabled = cursor >= ops.length;
+  }
+
+  // ===== Historia =====
+  function pushOp(op) {
+    ops = ops.slice(0, cursor);
+    ops.push(op);
+    cursor = ops.length;
+    render();
+  }
+
+  // ===== Sliders / filtry =====
+  const sliders = {
+    brightness: $('s-brightness'), contrast: $('s-contrast'),
+    saturate: $('s-saturate'), hue: $('s-hue'), blur: $('s-blur')
+  };
+
+  function syncSlidersFromOps() {
+    const last = ops[cursor - 1];
+    const css = (last && last.type === 'filter') ? last.css : '';
+    const d = { brightness:100, contrast:100, saturate:100, hue:0, blur:0, gray:false, sepia:false, invert:false };
+    if (css) {
+      let m;
+      if ((m = css.match(/brightness\(([\d.]+)%\)/)))  d.brightness = +m[1];
+      if ((m = css.match(/contrast\(([\d.]+)%\)/)))    d.contrast   = +m[1];
+      if ((m = css.match(/saturate\(([\d.]+)%\)/)))    d.saturate   = +m[1];
+      if ((m = css.match(/hue-rotate\((-?[\d.]+)deg\)/))) d.hue    = +m[1];
+      if ((m = css.match(/blur\(([\d.]+)px\)/)))       d.blur       = +m[1];
+      if (css.includes('grayscale')) d.gray   = true;
+      if (css.includes('sepia'))     d.sepia  = true;
+      if (css.includes('invert'))    d.invert = true;
+    }
+    sliders.brightness.value = d.brightness;
+    sliders.contrast.value   = d.contrast;
+    sliders.saturate.value   = d.saturate;
+    sliders.hue.value        = d.hue;
+    sliders.blur.value       = d.blur;
+    $('s-gray').checked   = d.gray;
+    $('s-sepia').checked  = d.sepia;
+    $('s-invert').checked = d.invert;
+    ['brightness','contrast','saturate','hue','blur'].forEach(k => {
+      $('v-' + k).textContent = sliders[k].value;
+    });
+  }
+
+  function buildFilterCSS() {
+    const parts = [];
+    const b = +sliders.brightness.value, c = +sliders.contrast.value;
+    const s = +sliders.saturate.value,   h = +sliders.hue.value;
+    const bl = +sliders.blur.value;
+    if (b !== 100) parts.push(`brightness(${b}%)`);
+    if (c !== 100) parts.push(`contrast(${c}%)`);
+    if (s !== 100) parts.push(`saturate(${s}%)`);
+    if (h !== 0)   parts.push(`hue-rotate(${h}deg)`);
+    if (bl > 0)    parts.push(`blur(${bl}px)`);
+    if ($('s-gray').checked)   parts.push('grayscale(1)');
+    if ($('s-sepia').checked)  parts.push('sepia(1)');
+    if ($('s-invert').checked) parts.push('invert(1)');
+    return parts.join(' ');
+  }
+
+  function applyAdjustments() {
+    const css = buildFilterCSS();
+    const last = ops[cursor - 1];
+    if (last && last.type === 'filter') {
+      ops = ops.slice(0, cursor);
+      if (css) ops[cursor - 1] = { type:'filter', css };
+      else { ops.splice(cursor - 1, 1); cursor--; }
+    } else if (css) {
+      ops = ops.slice(0, cursor);
+      ops.push({ type:'filter', css });
+      cursor = ops.length;
+    } else { render(); return; }
+    render();
+  }
+
+  ['brightness','contrast','saturate','hue','blur'].forEach(k => {
+    sliders[k].addEventListener('input', () => {
+      $('v-' + k).textContent = sliders[k].value;
+      applyAdjustments();
+    });
+  });
+  $('s-gray').onchange   = applyAdjustments;
+  $('s-sepia').onchange  = applyAdjustments;
+  $('s-invert').onchange = applyAdjustments;
+
+  // ===== Histogram =====
+  const histCanvas = $('histogram');
+  function drawHistogram() {
+    const W = histCanvas.clientWidth || 260;
+    const H = histCanvas.clientHeight || 70;
+    histCanvas.width  = W * devicePixelRatio;
+    histCanvas.height = H * devicePixelRatio;
+    const h = histCanvas.getContext('2d');
+    h.scale(devicePixelRatio, devicePixelRatio);
+    h.fillStyle = '#0a0a0e';
+    h.fillRect(0, 0, W, H);
+    if (!currentImageData) return;
+    const data = currentImageData.data;
+    const rH = new Uint32Array(256), gH = new Uint32Array(256), bH = new Uint32Array(256);
+    for (let i = 0; i < data.length; i += 64) {
+      rH[data[i]]++; gH[data[i+1]]++; bH[data[i+2]]++;
+    }
+    let max = 0;
+    for (let i = 1; i < 255; i++) {
+      if (rH[i] > max) max = rH[i];
+      if (gH[i] > max) max = gH[i];
+      if (bH[i] > max) max = bH[i];
+    }
+    if (max === 0) max = 1;
+    h.globalCompositeOperation = 'lighter';
+    const drawCh = (hist, color) => {
+      h.fillStyle = color;
+      const barW = W / 256 + 0.6;
+      for (let i = 0; i < 256; i++) {
+        const x = (i / 255) * W;
+        const barH = (hist[i] / max) * H * 0.95;
+        if (barH > 0) h.fillRect(x, H - barH, barW, barH);
+      }
+    };
+    drawCh(rH, 'rgba(255,60,60,0.75)');
+    drawCh(gH, 'rgba(60,255,80,0.75)');
+    drawCh(bH, 'rgba(80,120,255,0.75)');
+    h.globalCompositeOperation = 'source-over';
+  }
+
+  // ===== Wczytywanie =====
+  function loadImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width  = img.naturalWidth;
+      sourceCanvas.height = img.naturalHeight;
+      sourceCanvas.getContext('2d').drawImage(img, 0, 0);
+      ops = []; cursor = 0;
+      $('resize-w').value = ''; $('resize-h').value = '';
+      $('rot-angle').value = 0; $('rot-angle-num').value = 0;
+      syncSlidersFromOps();
+      exitCropMode();
+      // Zaproponuj nazwę na podstawie wczytanego pliku
+      if (file.name) {
+        const base = file.name.replace(/\.[^.]+$/, '').replace(/[^\w\-]+/g, '-').slice(0, 60) || 'moj-obraz';
+        $('export-name').value = base;
+        updateNamePreview();
+      }
+      render();
+      fitToViewport();
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => alert('Nie udało się wczytać tego pliku. Upewnij się, że to obraz (PNG, JPG, WebP…).');
+    img.src = url;
+  }
+  $('file').onchange = e => loadImageFile(e.target.files[0]);
+
+  document.body.addEventListener('dragover', e => e.preventDefault());
+  document.body.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) loadImageFile(f);
+  });
+  document.addEventListener('paste', e => {
+    const items = e.clipboardData?.items; if (!items) return;
+    for (const it of items) {
+      if (it.type.startsWith('image/')) { loadImageFile(it.getAsFile()); break; }
+    }
+  });
+
+  // ===== Geometria =====
+  $('rot-cw').onclick  = () => pushOp({ type:'rotate', deg: 90 });
+  $('rot-ccw').onclick = () => pushOp({ type:'rotate', deg: -90 });
+  $('rot-180').onclick = () => pushOp({ type:'rotate', deg: 180 });
+  $('flip-h').onclick  = () => pushOp({ type:'flip', h:true, v:false });
+  $('flip-v').onclick  = () => pushOp({ type:'flip', h:false, v:true });
+
+  // ===== Obrót o dowolny kąt =====
+  function syncAngle(val) {
+    let v = +val || 0;
+    v = Math.max(-180, Math.min(180, v));
+    $('rot-angle').value = Math.max(-45, Math.min(45, v));
+    $('rot-angle-num').value = v;
+  }
+  $('rot-angle').oninput     = e => syncAngle(e.target.value);
+  $('rot-angle-num').oninput = e => syncAngle(e.target.value);
+  $('rot-apply').onclick = () => {
+    const deg = +$('rot-angle-num').value;
+    if (!deg || Math.abs(deg) < 0.01) return;
+    pushOp({ type:'rotateAny', deg, autoCrop: $('rot-autocrop').checked });
+  };
+
+  // ===== Presety =====
+  const PRESETS = {
+    bright:  'brightness(118%)',
+    dark:    'brightness(85%) contrast(108%)',
+    vivid:   'saturate(140%) contrast(112%)',
+    warm:    'sepia(0.28) saturate(125%) hue-rotate(-12deg) brightness(105%)',
+    cool:    'hue-rotate(12deg) saturate(112%) brightness(104%)',
+    bw:      'grayscale(1) contrast(115%)',
+    vintage: 'sepia(0.55) contrast(92%) brightness(105%) saturate(85%)',
+    soft:    'blur(1.4px) brightness(106%) saturate(92%) contrast(95%)',
+  };
+  document.querySelectorAll('[data-preset]').forEach(b => {
+    b.onclick = () => {
+      const css = PRESETS[b.dataset.preset];
+      if (css) pushOp({ type:'filter', css });
+    };
+  });
+
+  // ===== Efekty =====
+  document.querySelectorAll('[data-effect]').forEach(b => {
+    b.onclick = () => {
+      if (!sourceCanvas) return;
+      const eff = b.dataset.effect;
+      let op;
+      if (eff === 'pixelate') {
+        const v = prompt('Rozmiar bloku (2–100):', '10'); if (!v) return;
+        op = { type:'pixelate', size: Math.max(2, Math.min(100, +v | 0)) };
+      } else if (eff === 'posterize') {
+        const v = prompt('Liczba poziomów koloru (2–32):', '6'); if (!v) return;
+        op = { type:'posterize', levels: Math.max(2, Math.min(32, +v | 0)) };
+      } else if (eff === 'threshold') {
+        const v = prompt('Próg czerni/bieli (0–255):', '128'); if (!v) return;
+        op = { type:'threshold', level: Math.max(0, Math.min(255, +v | 0)) };
+      } else if (eff === 'sharpen') {
+        op = { type:'sharpen' };
+      } else if (eff === 'edge') {
+        op = { type:'edge' };
+      } else if (eff === 'vignette') {
+        const v = prompt('Siła winiety (0–1):', '0.6'); if (!v) return;
+        op = { type:'vignette', strength: Math.max(0, Math.min(1, +v)) };
+      }
+      if (op) pushOp(op);
+    };
+  });
+  $('auto-contrast').onclick = () => pushOp({ type:'autoContrast' });
+  $('auto-color').onclick    = () => pushOp({ type:'autoColor' });
+
+  // ===== Crop =====
+  function imageCoords(e) {
+    const r = display.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (display.width  / r.width),
+      y: (e.clientY - r.top ) * (display.height / r.height)
+    };
+  }
+  function drawCropOverlay() {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    if (!cropRect) return;
+    octx.fillStyle = 'rgba(0,0,0,0.5)';
+    octx.fillRect(0, 0, overlay.width, overlay.height);
+    octx.clearRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+    octx.strokeStyle = '#3a5cff';
+    octx.lineWidth = Math.max(1, 2 / zoom);
+    octx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+  }
+  overlay.addEventListener('mousedown', e => {
+    if (!cropMode) return;
+    cropStart = imageCoords(e);
+    cropRect = { x: cropStart.x, y: cropStart.y, w: 0, h: 0 };
+    cropDrawing = true;
+    drawCropOverlay();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!cropDrawing) return;
+    const p = imageCoords(e);
+    const cx = Math.max(0, Math.min(display.width,  p.x));
+    const cy = Math.max(0, Math.min(display.height, p.y));
+    cropRect.x = Math.min(cropStart.x, cx);
+    cropRect.y = Math.min(cropStart.y, cy);
+    cropRect.w = Math.abs(cx - cropStart.x);
+    cropRect.h = Math.abs(cy - cropStart.y);
+    drawCropOverlay();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!cropDrawing) return;
+    cropDrawing = false;
+    drawCropOverlay();
+  });
+  $('crop').onclick = () => {
+    cropMode = true; cropRect = null;
+    overlay.classList.add('active');
+    $('crop-actions').style.display = 'block';
+    $('crop').disabled = true;
+  };
+  function exitCropMode() {
+    cropMode = false; cropRect = null; cropDrawing = false;
+    overlay.classList.remove('active');
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    $('crop-actions').style.display = 'none';
+    if (sourceCanvas) $('crop').disabled = false;
+  }
+  $('crop-cancel').onclick = exitCropMode;
+  $('crop-apply').onclick = () => {
+    if (!cropRect || cropRect.w < 2 || cropRect.h < 2) { exitCropMode(); return; }
+    const op = {
+      type:'crop',
+      x: Math.round(cropRect.x), y: Math.round(cropRect.y),
+      w: Math.round(cropRect.w), h: Math.round(cropRect.h)
+    };
+    exitCropMode();
+    pushOp(op);
+  };
+
+  // ===== Resize =====
+  $('resize-lock').onclick = () => {
+    lockAspect = !lockAspect;
+    $('resize-lock').classList.toggle('locked', lockAspect);
+  };
+  function aspectRatio() {
+    if (!display.width || !display.height) return 1;
+    return display.width / display.height;
+  }
+  $('resize-w').oninput = () => {
+    if (!lockAspect) return;
+    const w = +$('resize-w').value;
+    if (w > 0) $('resize-h').value = Math.max(1, Math.round(w / aspectRatio()));
+  };
+  $('resize-h').oninput = () => {
+    if (!lockAspect) return;
+    const h = +$('resize-h').value;
+    if (h > 0) $('resize-w').value = Math.max(1, Math.round(h * aspectRatio()));
+  };
+  $('resize-apply').onclick = () => {
+    const w = Math.max(1, Math.round(+$('resize-w').value || display.width));
+    const h = Math.max(1, Math.round(+$('resize-h').value || display.height));
+    if (w === display.width && h === display.height) return;
+    pushOp({ type:'resize', w, h });
+    $('resize-w').value = ''; $('resize-h').value = '';
+  };
+
+  // ===== Undo / redo / reset =====
+  $('undo').onclick = () => { if (cursor > 0) { cursor--; render(); syncSlidersFromOps(); } };
+  $('redo').onclick = () => { if (cursor < ops.length) { cursor++; render(); syncSlidersFromOps(); } };
+  $('reset').onclick = () => {
+    if (ops.length && !confirm('Przywrócić oryginał? Wszystkie zmiany zostaną utracone.')) return;
+    ops = []; cursor = 0;
+    $('resize-w').value = ''; $('resize-h').value = '';
+    $('rot-angle').value = 0; $('rot-angle-num').value = 0;
+    syncSlidersFromOps(); render();
+  };
+  $('adjust-reset').onclick = () => {
+    sliders.brightness.value = 100;
+    sliders.contrast.value   = 100;
+    sliders.saturate.value   = 100;
+    sliders.hue.value        = 0;
+    sliders.blur.value       = 0;
+    $('s-gray').checked   = false;
+    $('s-sepia').checked  = false;
+    $('s-invert').checked = false;
+    ['brightness','contrast','saturate','hue','blur'].forEach(k =>
+      $('v-' + k).textContent = sliders[k].value);
+    applyAdjustments();
+  };
+
+  // ===== Nazwa pliku =====
+  function sanitizeName(name) {
+    return (name || 'moj-obraz')
+      .trim()
+      .replace(/\.(png|jpe?g|webp)$/i, '')
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 80) || 'moj-obraz';
+  }
+  function updateNamePreview() {
+    const n = sanitizeName($('export-name').value);
+    $('name-preview').textContent = `${n}.${lastFormat}`;
+  }
+  $('export-name').addEventListener('input', updateNamePreview);
+  updateNamePreview();
+
+  // ===== Eksport =====
+  function exportImage(mime, ext) {
+    lastFormat = ext;
+    updateNamePreview();
+    const q = +$('quality').value;
+    const base = sanitizeName($('export-name').value);
+    display.toBlob(blob => {
+      if (!blob) { alert('Nie udało się zapisać pliku.'); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = base + '.' + ext;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    }, mime, q);
+  }
+  $('export-png').onclick  = () => exportImage('image/png',  'png');
+  $('export-jpg').onclick  = () => exportImage('image/jpeg', 'jpg');
+  $('export-webp').onclick = () => exportImage('image/webp', 'webp');
+  $('quality').oninput = e => $('v-quality').textContent = e.target.value;
+
+  // ===== Zoom / pan =====
+  function applyTransform() {
+    stage.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    zoomLabel.textContent = Math.round(zoom * 100) + '%';
+    updateStatus();
+  }
+  function fitToViewport() {
+    if (!display.width) return;
+    const r = viewport.getBoundingClientRect();
+    const s = Math.min(r.width / display.width, r.height / display.height, 1) * 0.94;
+    zoom = s;
+    panX = (r.width  - display.width  * s) / 2;
+    panY = (r.height - display.height * s) / 2;
+    applyTransform();
+  }
+  function setZoom(newZoom, cx, cy) {
+    if (cx == null) {
+      const r = viewport.getBoundingClientRect();
+      cx = r.width / 2; cy = r.height / 2;
+    }
+    newZoom = Math.max(0.05, Math.min(20, newZoom));
+    panX = cx - (cx - panX) * (newZoom / zoom);
+    panY = cy - (cy - panY) * (newZoom / zoom);
+    zoom = newZoom;
+    applyTransform();
+  }
+  viewport.addEventListener('wheel', e => {
+    if (!sourceCanvas) return;
+    e.preventDefault();
+    const r = viewport.getBoundingClientRect();
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    setZoom(zoom * factor, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  $('zoom-in').onclick  = () => setZoom(zoom * 1.25);
+  $('zoom-out').onclick = () => setZoom(zoom / 1.25);
+  $('zoom-fit').onclick = fitToViewport;
+  $('zoom-1-1').onclick = () => {
+    const r = viewport.getBoundingClientRect();
+    setZoom(1, r.width / 2, r.height / 2);
+  };
+
+  viewport.addEventListener('mousedown', e => {
+    if (!sourceCanvas) return;
+    const wantPan = (e.button === 1) || spaceHeld || (e.button === 0 && e.altKey);
+    if (wantPan) {
+      panning = true;
+      panStartX = e.clientX; panStartY = e.clientY;
+      panStartPanX = panX; panStartPanY = panY;
+      viewport.classList.add('panning');
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('mousemove', e => {
+    if (!panning) return;
+    panX = panStartPanX + (e.clientX - panStartX);
+    panY = panStartPanY + (e.clientY - panStartY);
+    applyTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    if (panning) { panning = false; viewport.classList.remove('panning'); }
+  });
+
+  // ===== Narzędzia =====
+  $('tool-select').onclick = () => setTool('select');
+  $('tool-pipette').onclick = () => setTool('pipette');
+  function setTool(t) {
+    tool = t;
+    $('tool-select').classList.toggle('primary', t === 'select');
+    $('tool-pipette').classList.toggle('primary', t === 'pipette');
+  }
+  display.addEventListener('click', e => {
+    if (tool !== 'pipette' || !currentImageData) return;
+    const r = display.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) * (display.width  / r.width));
+    const y = Math.floor((e.clientY - r.top ) * (display.height / r.height));
+    if (x < 0 || y < 0 || x >= display.width || y >= display.height) return;
+    const idx = (y * display.width + x) * 4;
+    const hex = '#' + [currentImageData.data[idx], currentImageData.data[idx+1], currentImageData.data[idx+2]]
+      .map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+    navigator.clipboard?.writeText(hex);
+    cursorInfo.textContent = `Skopiowano: ${hex}`;
+  });
+
+  // ===== Cursor info =====
+  display.addEventListener('mousemove', e => {
+    if (!currentImageData) { cursorInfo.textContent = '—'; return; }
+    const r = display.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) * (display.width  / r.width));
+    const y = Math.floor((e.clientY - r.top ) * (display.height / r.height));
+    if (x < 0 || y < 0 || x >= display.width || y >= display.height) {
+      cursorInfo.textContent = '—'; return;
+    }
+    const idx = (y * display.width + x) * 4;
+    const rd = currentImageData.data[idx];
+    const gr = currentImageData.data[idx+1];
+    const bl = currentImageData.data[idx+2];
+    const hex = '#' + [rd, gr, bl].map(v => v.toString(16).padStart(2,'0')).join('').toUpperCase();
+    cursorInfo.textContent = `x:${x}  y:${y}   ${hex}  rgb(${rd},${gr},${bl})`;
+  });
+  display.addEventListener('mouseleave', () => { cursorInfo.textContent = '—'; });
+
+  // ===== Przed / Po =====
+  function showOriginal(show) {
+    if (!currentCanvas || !sourceCanvas) return;
+    dctx.clearRect(0, 0, display.width, display.height);
+    if (!show) { dctx.drawImage(currentCanvas, 0, 0); return; }
+    dctx.fillStyle = '#000';
+    dctx.fillRect(0, 0, display.width, display.height);
+    const sa = sourceCanvas.width / sourceCanvas.height;
+    const da = display.width / display.height;
+    let w, h;
+    if (sa > da) { w = display.width; h = w / sa; }
+    else         { h = display.height; w = h * sa; }
+    dctx.drawImage(sourceCanvas, (display.width - w) / 2, (display.height - h) / 2, w, h);
+  }
+  const beforeBtn = $('before-btn');
+  beforeBtn.addEventListener('mousedown', () => { beforeBtn.classList.add('held'); showOriginal(true); });
+  beforeBtn.addEventListener('mouseup',   () => { beforeBtn.classList.remove('held'); showOriginal(false); });
+  beforeBtn.addEventListener('mouseleave',() => { beforeBtn.classList.remove('held'); showOriginal(false); });
+
+  // ===== Klawiatura =====
+  document.addEventListener('keydown', e => {
+    const tag = document.activeElement?.tagName;
+    const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON';
+    if (e.code === 'Space' && !inField) {
+      if (!spaceHeld) { spaceHeld = true; viewport.classList.add('pan-ready'); }
+      e.preventDefault(); return;
+    }
+    if (e.key === '\\' && !e.repeat && !inField) {
+      showOriginal(true); beforeBtn.classList.add('held'); e.preventDefault(); return;
+    }
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); $('undo').click(); return; }
+    if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+      e.preventDefault(); $('redo').click(); return;
+    }
+    if (mod && e.key === '0') { e.preventDefault(); fitToViewport(); return; }
+    if (mod && (e.key === '1' || e.key === '!')) {
+      e.preventDefault();
+      const r = viewport.getBoundingClientRect();
+      setZoom(1, r.width / 2, r.height / 2); return;
+    }
+    if (e.key === 'Escape') {
+      if (cropMode) exitCropMode();
+      if (tool === 'pipette') setTool('select');
+    }
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code === 'Space') {
+      spaceHeld = false;
+      viewport.classList.remove('pan-ready');
+      e.preventDefault(); return;
+    }
+    if (e.key === '\\') {
+      beforeBtn.classList.remove('held'); showOriginal(false);
+    }
+  });
+
+  // Inicjalizacja pustego stanu
+  emptyState.classList.remove('hidden');
+})();
+</script>
+</body>
+</html>
