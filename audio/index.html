@@ -1,0 +1,1942 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8"><title>Edytor audio</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:#1a1a1e; color:#e8e8ea;
+         display:grid; grid-template-columns:340px 1fr; height:100vh; overflow:hidden; }
+  aside { background:#111114; padding:16px; border-right:1px solid #2a2a30; overflow-y:auto; }
+  main  { display:flex; flex-direction:column; overflow:hidden; }
+  h1 { font-size:14px; margin:0 0 14px; color:#a8a8b3; text-transform:uppercase; letter-spacing:1px; }
+  .group { margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid #2a2a30; }
+  .group:last-child { border-bottom:none; margin-bottom:0; }
+  .group h3 { font-size:11px; text-transform:uppercase; color:#7a7a86; margin:0 0 8px; letter-spacing:.5px; }
+  button { padding:7px 10px; background:#2a2a32; color:#e8e8ea; border:1px solid #3a3a44;
+           border-radius:6px; cursor:pointer; font-size:12px; transition:.12s; font-family:inherit; }
+  button:hover:not(:disabled) { background:#3a3a44; }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  button.primary { background:#3a5cff; border-color:#3a5cff; }
+  button.primary:hover:not(:disabled) { background:#4a6cff; }
+  button.danger { background:#7f1d1d; border-color:#991b1b; }
+  button.danger:hover:not(:disabled) { background:#991b1b; }
+  button.recording { background:#dc2626; border-color:#dc2626; animation:pulse 1s infinite; }
+  button.learned { background:#16a34a; border-color:#16a34a; }
+  @keyframes pulse { 50% { opacity:.6; } }
+  button.preset { padding:10px 6px; font-size:12px; font-weight:500; background:#1e1e24;
+                  border:1px solid #2a2a30; }
+  button.preset:hover:not(:disabled) { background:#25253a; border-color:#3a5cff; transform:translateY(-1px); }
+  .row { display:flex; gap:5px; margin-bottom:6px; }
+  .row button { flex:1; min-width:50px; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:6px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; margin-bottom:6px; }
+  label.slider { display:grid; grid-template-columns:90px 1fr 50px; gap:6px; align-items:center;
+                 font-size:12px; margin:5px 0; }
+  label.row-flex { display:grid; grid-template-columns:90px 1fr; gap:6px; align-items:center;
+                   font-size:12px; margin:5px 0; }
+  input[type=range] { width:100%; accent-color:#3a5cff; }
+  input[type=checkbox] { accent-color:#3a5cff; }
+  .check { display:flex; align-items:center; gap:6px; font-size:13px; margin:5px 0; cursor:pointer; }
+  .text-input, select.text-input { width:100%; padding:6px; background:#1e1e24; color:#e8e8ea;
+                border:1px solid #3a3a44; border-radius:5px; font-size:12px; font-family:inherit; }
+  .text-input:focus { outline:none; border-color:#3a5cff; }
+  .file-btn { display:block; padding:14px; background:#1e1e24; color:#e8e8ea; border:2px dashed #3a3a44;
+              border-radius:8px; text-align:center; cursor:pointer; font-size:13px; font-weight:500;
+              margin-bottom:10px; transition:.15s; }
+  .file-btn:hover { border-color:#3a5cff; color:#3a5cff; background:#1a1a2a; }
+  .file-btn small { display:block; font-weight:400; font-size:11px; color:#7a7a86; margin-top:4px; }
+  input[type=file] { display:none; }
+  .hint { color:#5a5a66; font-size:11px; text-align:center; }
+  .hint.mono { font-family:ui-monospace, monospace; color:#7a7a86; }
+  .hint.left { text-align:left; }
+  .badge { display:inline-block; padding:2px 8px; background:#3a5cff; color:white;
+           font-size:10px; font-weight:600; border-radius:10px; margin-left:4px; }
+  .badge.empty { background:#2a2a32; color:#7a7a86; }
+  .badge.ok { background:#16a34a; }
+  .steps { display:flex; flex-direction:column; gap:4px; font-size:11px; color:#7a7a86; margin-bottom:6px; }
+  .steps .step { display:flex; gap:6px; align-items:flex-start; }
+  .steps .num { flex-shrink:0; width:16px; height:16px; border-radius:50%; background:#1e1e24;
+                color:#a8a8b3; display:grid; place-items:center; font-size:9px; font-weight:700;
+                border:1px solid #2a2a30; }
+  .steps .step.done .num { background:#16a34a; color:white; border-color:#16a34a; }
+  .steps .step.done { color:#a8a8b3; }
+
+  /* lista kolejki do łączenia */
+  #merge-queue { display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+  #merge-queue:empty::after {
+    content: 'Kolejka pusta — dodaj pliki powyżej';
+    display:block; text-align:center; font-size:11px; color:#5a5a66;
+    padding:8px; border:1px dashed #2a2a30; border-radius:6px;
+  }
+  .mq-item { display:grid; grid-template-columns:40px 1fr auto; gap:6px; align-items:center;
+             background:#1e1e24; border:1px solid #2a2a30; border-radius:6px; padding:6px 8px; }
+  .mq-item canvas { width:40px; height:28px; background:#0a0a0e; border-radius:3px; }
+  .mq-item .mq-info { font-size:11px; min-width:0; }
+  .mq-item .mq-name { color:#e8e8ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; }
+  .mq-item .mq-meta { color:#7a7a86; font-size:10px; font-family:ui-monospace,monospace; }
+  .mq-item .mq-btns { display:flex; gap:2px; }
+  .mq-item .mq-btns button { padding:3px 6px; font-size:10px; min-width:auto; }
+
+  #toolbar { flex:0 0 auto; padding:8px 14px; background:#0e0e12; border-bottom:1px solid #2a2a30;
+             display:flex; gap:10px; align-items:center; }
+  #toolbar .spacer { flex:1; }
+  #toolbar #time-display { font-family:ui-monospace,monospace; font-size:12px; color:#a8a8b3;
+                           min-width:140px; text-align:center; }
+  #levels { display:flex; flex-direction:column; gap:2px; width:100px; }
+  #levels .lvl { height:6px; background:#1a1a1e; border-radius:3px; overflow:hidden; position:relative; }
+  #levels .lvl-fill { height:100%; width:0%; background:linear-gradient(90deg, #22c55e 0%, #22c55e 60%, #f59e0b 80%, #dc2626 100%);
+                      transition:width .05s linear; }
+  #levels .lvl-label { position:absolute; left:4px; top:-1px; font-size:9px; color:#5a5a66;
+                       font-family:ui-monospace,monospace; font-weight:600; }
+  #viewport { flex:1; overflow:hidden; position:relative; background:#0a0a0e;
+              display:flex; align-items:center; justify-content:center; padding:16px; }
+  #waveform { width:100%; height:100%; cursor:crosshair; border-radius:8px; display:block; }
+  #empty-state { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+                 justify-content:center; gap:14px; pointer-events:none; color:#4a4a56;
+                 text-align:center; padding:40px; }
+  #empty-state.hidden { display:none; }
+  #empty-state .big { font-size:80px; line-height:1; opacity:.4; }
+  #empty-state h2 { font-size:22px; color:#7a7a86; margin:0; font-weight:600; }
+  #empty-state p { margin:0; font-size:14px; max-width:380px; line-height:1.5; }
+  #empty-state kbd { background:#1e1e24; border:1px solid #3a3a44; padding:2px 6px;
+                     border-radius:4px; font-family:ui-monospace,monospace; font-size:12px; color:#a8a8b3; }
+  #statusbar { flex:0 0 auto; padding:5px 14px; background:#0e0e12; border-top:1px solid #2a2a30;
+               display:flex; justify-content:space-between; font-size:11px; color:#7a7a86;
+               font-family:ui-monospace, monospace; }
+  #stats { flex:0 0 auto; padding:6px 14px; background:#0e0e12; border-top:1px solid #2a2a30;
+           display:flex; gap:16px; font-size:11px; color:#a8a8b3; font-family:ui-monospace,monospace;
+           flex-wrap:wrap; }
+  #stats span b { color:#e8e8ea; font-weight:600; }
+  #ops-log { flex:0 0 auto; padding:6px 14px; background:#0e0e12; border-top:1px solid #2a2a30;
+             display:none; font-size:11px; color:#a8a8b3; max-height:60px; overflow-y:auto; }
+  #ops-log.visible { display:block; }
+  #ops-log .op-tag { display:inline-block; padding:2px 8px; background:#1e1e24; border:1px solid #2a2a30;
+                     border-radius:4px; margin:2px 4px 2px 0; font-family:ui-monospace, monospace;
+                     font-size:10px; color:#a8a8b3; }
+  #progress-wrap { flex:0 0 auto; padding:6px 14px; background:#0e0e12; border-top:1px solid #2a2a30;
+                   display:none; font-size:11px; color:#7a7a86; }
+  #progress-wrap.visible { display:block; }
+  #rec-indicator { position:absolute; top:16px; right:16px; padding:6px 12px; background:rgba(220,38,38,0.9);
+                   border-radius:6px; font-size:12px; font-weight:600; color:white; display:none;
+                   font-family:ui-monospace,monospace; z-index:5; }
+  #rec-indicator.visible { display:block; animation:pulse 1s infinite; }
+  .dot-red { display:inline-block; width:8px; height:8px; background:white; border-radius:50%;
+             margin-right:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Edytor audio</h1>
+
+  <div class="group">
+    <label class="file-btn" for="file">
+      📁 Wczytaj audio
+      <small>MP3, WAV, OGG, M4A, FLAC, AAC…</small>
+    </label>
+    <input type="file" id="file" accept="audio/*">
+    <div class="row">
+      <button id="record-btn" class="primary" style="flex:2">🎙 Nagraj z mikrofonu</button>
+    </div>
+    <div class="row">
+      <button id="undo" disabled>↶ Cofnij</button>
+      <button id="redo" disabled>↷ Ponów</button>
+    </div>
+    <div class="row">
+      <button id="reset" disabled>🔄 Od nowa</button>
+      <button id="compare-btn" disabled title="Przytrzymaj, żeby zobaczyć oryginał">👁 A/B</button>
+    </div>
+    <div class="hint" id="record-info">Zamień plik lub nagraj od zera</div>
+  </div>
+
+  <!-- ============================================================
+       PRZYCINANIE — jaśniejsze, krok po kroku
+       ============================================================ -->
+  <div class="group">
+    <h3>✂ Przycinanie <span class="badge empty" id="ops-badge">0 zmian</span></h3>
+    <div class="steps">
+      <div class="step" id="step-trim-a"><span class="num">1</span><span>Przewiń i kliknij <b>„Ustaw początek"</b></span></div>
+      <div class="step" id="step-trim-b"><span class="num">2</span><span>Przewiń dalej i kliknij <b>„Ustaw koniec"</b></span></div>
+      <div class="step" id="step-trim-c"><span class="num">3</span><span>Sprawdź i <b>„Zostaw"</b> albo <b>„Usuń"</b></span></div>
+    </div>
+    <div class="hint mono" id="trim-info" style="margin-bottom:6px">Brak zaznaczenia</div>
+    <div class="grid-2">
+      <button id="mark-start" disabled>⏱ Ustaw początek</button>
+      <button id="mark-end" disabled>⏱ Ustaw koniec</button>
+    </div>
+    <div class="grid-2">
+      <button id="trim-preview" disabled>▶ Odtwórz fragment</button>
+      <button id="trim-clear" disabled>🗑 Wyczyść</button>
+    </div>
+    <div class="grid-2">
+      <button id="trim-apply" class="primary" disabled>✂ Zostaw</button>
+      <button id="trim-delete" class="danger" disabled>✖ Usuń</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ŁĄCZENIE NAGRAŃ
+       ============================================================ -->
+  <div class="group">
+    <h3>🔗 Łączenie nagrań</h3>
+    <div class="grid-2">
+      <label class="file-btn" for="merge-files" style="margin:0;padding:8px;font-size:11px">➕ Dodaj pliki</label>
+      <input type="file" id="merge-files" accept="audio/*" multiple>
+      <button id="merge-add-current" disabled title="Dodaje aktualnie otwarte nagranie do kolejki">➕ Dodaj bieżące</button>
+    </div>
+    <div id="merge-queue"></div>
+    <label class="slider" style="margin-top:8px">
+      <span>Płynne przejście</span>
+      <input type="range" id="merge-crossfade" min="0" max="2" step="0.05" value="0.2" disabled>
+      <span id="merge-crossfade-val">0.2s</span>
+    </label>
+    <div class="hint left" style="margin-top:-2px; margin-bottom:6px">0 = twarde cięcie, więcej = płynniejsze</div>
+    <button id="merge-go" class="primary" disabled style="width:100%">🔗 Połącz wszystko</button>
+  </div>
+
+  <div class="group">
+    <h3>✨ Szybkie ulepszenia</h3>
+    <div class="grid-2">
+      <button class="preset" data-preset="louder" disabled>🔊 Głośniej</button>
+      <button class="preset" data-preset="quieter" disabled>🔉 Ciszej</button>
+      <button class="preset" data-preset="podcast" disabled>🎙 Podcast</button>
+      <button class="preset" data-preset="music" disabled>🎵 Muzyka</button>
+      <button class="preset" data-preset="radio" disabled>📻 Radio</button>
+      <button class="preset" data-preset="clean" disabled>✨ Czystszy</button>
+      <button class="preset" data-preset="faster" disabled>⚡ Szybciej</button>
+      <button class="preset" data-preset="slower" disabled>🐢 Wolniej</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>🧹 Czyszczenie z szumów</h3>
+    <div class="steps">
+      <div class="step" id="step-1"><span class="num">1</span><span>Zaznacz na fali fragment z <b>samym szumem</b> (0,3–1&nbsp;s)</span></div>
+      <div class="step" id="step-2"><span class="num">2</span><span>Kliknij „Naucz się szumu"</span></div>
+      <div class="step" id="step-3"><span class="num">3</span><span>Kliknij „Zastosuj odszumianie"</span></div>
+    </div>
+    <button id="learn-noise" disabled style="width:100%">🎓 Naucz się szumu</button>
+    <div class="hint mono" id="noise-info" style="margin-top:6px">Brak profilu szumu</div>
+    <label class="slider" style="margin-top:8px"><span>Siła</span><input type="range" id="noise-strength" min="0.3" max="3" step="0.1" value="1.2" disabled><span id="noise-strength-val">1.2</span></label>
+    <label class="slider"><span>Odcięcie niskich</span><input type="range" id="noise-highpass" min="0" max="200" step="5" value="80" disabled><span id="noise-hp-val">80</span></label>
+    <button id="denoise-apply" class="primary" disabled style="width:100%; margin-top:8px">🧹 Zastosuj odszumianie</button>
+  </div>
+
+  <div class="group">
+    <h3>Fade in / out</h3>
+    <label class="slider"><span>Czas trwania</span><input type="range" id="fade-dur" min="0.1" max="15" step="0.1" value="2" disabled><span id="fade-dur-val">2s</span></label>
+    <div class="grid-2">
+      <button id="fade-in" disabled>↗ Wprowadź</button>
+      <button id="fade-out" disabled>↘ Wyprowadź</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Głośność</h3>
+    <label class="slider"><span>Wzmocnienie</span><input type="range" id="gain-slider" min="-20" max="20" step="0.5" value="0" disabled><span id="gain-val">0dB</span></label>
+    <div class="grid-2">
+      <button id="gain-apply" disabled>Zastosuj</button>
+      <button id="normalize" disabled>📊 Normalizuj</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Korektor (EQ)</h3>
+    <label class="slider"><span>Basy</span><input type="range" id="eq-bass" min="-12" max="12" step="0.5" value="0" disabled><span id="eq-bass-val">0</span></label>
+    <label class="slider"><span>Średnie</span><input type="range" id="eq-mid" min="-12" max="12" step="0.5" value="0" disabled><span id="eq-mid-val">0</span></label>
+    <label class="slider"><span>Soprany</span><input type="range" id="eq-treble" min="-12" max="12" step="0.5" value="0" disabled><span id="eq-treble-val">0</span></label>
+    <div class="grid-2">
+      <button id="eq-apply" disabled>Zastosuj EQ</button>
+      <button id="eq-reset" disabled>Reset</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Efekty</h3>
+    <div class="grid-2">
+      <button id="reverse" disabled>⏪ Odwróć</button>
+      <button id="reverb" disabled>🏛 Pogłos</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>Tempo</h3>
+    <label class="slider"><span>Prędkość</span><input type="range" id="speed-slider" min="0.5" max="2" step="0.05" value="1" disabled><span id="speed-val">1×</span></label>
+    <div class="row"><button id="speed-apply" disabled>Zmień tempo</button></div>
+  </div>
+
+  <div class="group">
+    <h3>Zapis pliku</h3>
+    <label class="row-flex">
+      <span>Format</span>
+      <select id="out-format" class="text-input">
+        <option value="mp3" selected>MP3 (uniwersalny, mały)</option>
+        <option value="wav">WAV (bezstratny, duży)</option>
+      </select>
+    </label>
+    <label class="row-flex">
+      <span>Jakość MP3</span>
+      <select id="quality" class="text-input">
+        <option value="96">96 kbps (głos, mały)</option>
+        <option value="128" selected>128 kbps (uniwersalny)</option>
+        <option value="192">192 kbps (dobra)</option>
+        <option value="256">256 kbps (bardzo dobra)</option>
+        <option value="320">320 kbps (maks.)</option>
+      </select>
+    </label>
+    <label class="row-flex">
+      <span>Próbkowanie</span>
+      <select id="sample-rate" class="text-input">
+        <option value="">Bez zmian</option>
+        <option value="44100">44.1 kHz (CD)</option>
+        <option value="22050">22.05 kHz (mniejsze)</option>
+        <option value="16000">16 kHz (głos)</option>
+        <option value="8000">8 kHz (telefon)</option>
+      </select>
+    </label>
+    <label class="row-flex">
+      <span>Kanały</span>
+      <select id="channels" class="text-input">
+        <option value="">Bez zmian</option>
+        <option value="1">Mono (mniejsze)</option>
+        <option value="2">Stereo</option>
+      </select>
+    </label>
+    <label class="row-flex">
+      <span>Nazwa</span>
+      <input type="text" id="export-name" class="text-input" value="moj-audio" maxlength="80">
+    </label>
+    <div class="hint mono" id="name-preview">moj-audio.mp3</div>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="export" disabled style="flex:2">💾 Zapisz</button>
+    </div>
+    <div class="hint" id="est-size">—</div>
+  </div>
+</aside>
+
+<main>
+  <div id="toolbar">
+    <button id="play-pause" disabled>▶</button>
+    <button id="stop-btn" disabled>⏹</button>
+    <span id="time-display">0:00 / 0:00</span>
+    <span class="spacer"></span>
+    <div id="levels" title="Poziom głośności L / R">
+      <div class="lvl"><div class="lvl-fill" id="lvl-l"></div><span class="lvl-label">L</span></div>
+      <div class="lvl"><div class="lvl-fill" id="lvl-r"></div><span class="lvl-label">R</span></div>
+    </div>
+    <span class="spacer"></span>
+    <button id="loop-btn" title="Zapętl odtwarzanie">🔁</button>
+    <button id="mute-btn" title="Wycisz podgląd">🔊</button>
+    <span class="spacer"></span>
+    <span class="hint mono" id="file-info" style="color:#5a5a66">—</span>
+  </div>
+  <div id="viewport">
+    <div id="empty-state">
+      <div class="big">🎵</div>
+      <h2>Wczytaj plik audio — albo naciśnij „Nagraj z mikrofonu"</h2>
+      <p>Przeciągnij tutaj, kliknij <b>„Wczytaj audio"</b>, albo wklej ze schowka <kbd>Ctrl</kbd>+<kbd>V</kbd>.</p>
+      <p style="font-size:12px;color:#5a5a66">Wszystko działa lokalnie. Nagrywanie też — od zera, bez pliku.</p>
+    </div>
+    <canvas id="waveform"></canvas>
+    <div id="rec-indicator"><span class="dot-red"></span>NAGRYWANIE… <span id="rec-time">0.0s</span></div>
+  </div>
+  <div id="stats">
+    <span>Czas: <b id="stat-dur">—</b></span>
+    <span>Peak: <b id="stat-peak">—</b></span>
+    <span>RMS: <b id="stat-rms">—</b></span>
+    <span>Kanały: <b id="stat-ch">—</b></span>
+    <span>Próbkowanie: <b id="stat-sr">—</b></span>
+  </div>
+  <div id="ops-log"></div>
+  <div id="progress-wrap"></div>
+  <div id="statusbar">
+    <span id="sel-info">—</span>
+    <span id="size-info">—</span>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const canvas = $('waveform');
+  const ctx2d = canvas.getContext('2d');
+  const emptyState = $('empty-state');
+  const fileInfo = $('file-info');
+  const sizeInfo = $('size-info');
+  const timeDisplay = $('time-display');
+  const selInfo = $('sel-info');
+  const progressWrap = $('progress-wrap');
+  const opsLog = $('ops-log');
+  const recIndicator = $('rec-indicator');
+  const mergeQueueEl = $('merge-queue');
+
+  // ============================================================
+  // STAN
+  // ============================================================
+  let audioCtx = null;
+  let originalBuffer = null;
+  let renderedBuffer = null;
+  let peaks = null;
+  let sourceFile = null;
+  let showingOriginal = false;
+
+  let playing = false, playSrc = null, playStartCtxTime = 0, currentTime = 0;
+  let loop = false, muted = false, masterGain = null, analyser = null;
+  let levelRAF = null;
+
+  let selection = null;                 // {start, end} w sekundach
+  let dragStart = null, dragging = false, mouseDownX = 0;
+  let playingSelection = false;
+
+  let opsStack = [[]];
+  let opsCursor = 0;
+  const currentOps = () => opsStack[opsCursor];
+
+  let renderTimer = null, viewStart = 0, viewEnd = 0;
+
+  let mediaRecorder = null, recordedChunks = [], isRecording = false;
+  let recStartTime = 0, recTimer = null;
+  let micAnalyser = null, micStream = null;
+
+  let noiseProfile = null;
+
+  // Kolejka do łączenia: [{name, buffer, canvasData}]
+  let mergeQueue = [];
+
+  // ============================================================
+  // AUDIO CONTEXT
+  // ============================================================
+  function getCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = muted ? 0 : 1;
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      masterGain.connect(analyser);
+      analyser.connect(audioCtx.destination);
+    }
+    return audioCtx;
+  }
+
+  // ============================================================
+  // FFT (radix-2)
+  // ============================================================
+  function fft(re, im, inverse) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        let t = re[i]; re[i] = re[j]; re[j] = t;
+        t = im[i]; im[i] = im[j]; im[j] = t;
+      }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = 2 * Math.PI / len * (inverse ? 1 : -1);
+      const wRe = Math.cos(ang), wIm = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let curRe = 1, curIm = 0;
+        for (let j = 0; j < len / 2; j++) {
+          const uRe = re[i + j], uIm = im[i + j];
+          const vRe = re[i + j + len/2] * curRe - im[i + j + len/2] * curIm;
+          const vIm = re[i + j + len/2] * curIm + im[i + j + len/2] * curRe;
+          re[i + j] = uRe + vRe; im[i + j] = uIm + vIm;
+          re[i + j + len/2] = uRe - vRe; im[i + j + len/2] = uIm - vIm;
+          const nRe = curRe * wRe - curIm * wIm;
+          curIm = curRe * wIm + curIm * wRe;
+          curRe = nRe;
+        }
+      }
+    }
+    if (inverse) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+  }
+
+  const FFT_SIZE = 2048;
+  const HOP_SIZE = 512;
+  const N_BINS = FFT_SIZE / 2 + 1;
+  const HANN = (() => {
+    const w = new Float32Array(FFT_SIZE);
+    for (let i = 0; i < FFT_SIZE; i++) w[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
+    return w;
+  })();
+
+  function learnNoiseProfile(buffer, startSec, endSec) {
+    const sr = buffer.sampleRate;
+    const start = Math.max(0, Math.floor(startSec * sr));
+    const end = Math.min(buffer.length, Math.floor(endSec * sr));
+    if (end - start < FFT_SIZE) throw new Error('Zaznacz co najmniej 0,1 s samego szumu.');
+    const profile = new Float32Array(N_BINS);
+    let frameCount = 0;
+    const re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const data = buffer.getChannelData(ch);
+      for (let pos = start; pos + FFT_SIZE <= end; pos += HOP_SIZE) {
+        for (let i = 0; i < FFT_SIZE; i++) { re[i] = data[pos + i] * HANN[i]; im[i] = 0; }
+        fft(re, im, false);
+        for (let k = 0; k < N_BINS; k++) profile[k] += Math.hypot(re[k], im[k]);
+        frameCount++;
+      }
+    }
+    if (frameCount === 0) throw new Error('Nie udało się przeanalizować fragmentu.');
+    for (let k = 0; k < N_BINS; k++) profile[k] /= frameCount;
+    return profile;
+  }
+
+  function spectralSubtractChannel(input, noiseProfile, strength) {
+    const n = input.length;
+    const out = new Float32Array(n);
+    const windowSum = new Float32Array(n);
+    const re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
+    const nFrames = Math.max(1, Math.ceil((n - FFT_SIZE) / HOP_SIZE) + 1);
+    for (let f = 0; f < nFrames; f++) {
+      const start = f * HOP_SIZE;
+      for (let i = 0; i < FFT_SIZE; i++) {
+        const s = start + i;
+        re[i] = (s < n ? input[s] : 0) * HANN[i];
+        im[i] = 0;
+      }
+      fft(re, im, false);
+      for (let k = 0; k < N_BINS; k++) {
+        const mag = Math.hypot(re[k], im[k]);
+        const noise = noiseProfile[k] * strength;
+        let newMag = mag - noise;
+        if (newMag < 0) newMag = 0;
+        if (newMag < mag * 0.05) newMag = mag * 0.05;
+        const scale = mag > 1e-10 ? newMag / mag : 0;
+        re[k] *= scale; im[k] *= scale;
+        if (k > 0 && k < FFT_SIZE / 2) { re[FFT_SIZE - k] *= scale; im[FFT_SIZE - k] *= scale; }
+      }
+      fft(re, im, true);
+      for (let i = 0; i < FFT_SIZE; i++) {
+        const s = start + i;
+        if (s >= n) break;
+        out[s] += re[i] * HANN[i];
+        windowSum[s] += HANN[i] * HANN[i];
+      }
+    }
+    for (let i = 0; i < n; i++) if (windowSum[i] > 1e-8) out[i] /= windowSum[i];
+    return out;
+  }
+
+  async function applyDenoise(buffer, noiseProfile, strength, highpassHz) {
+    let src = buffer;
+    if (highpassHz > 0) {
+      const oc = new OfflineAudioContext(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+      const s = oc.createBufferSource(); s.buffer = buffer;
+      const hp = oc.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = highpassHz; hp.Q.value = 0.7;
+      s.connect(hp); hp.connect(oc.destination);
+      s.start();
+      src = await oc.startRendering();
+    }
+    const out = new AudioBuffer({
+      numberOfChannels: src.numberOfChannels,
+      length: src.length,
+      sampleRate: src.sampleRate,
+    });
+    for (let ch = 0; ch < src.numberOfChannels; ch++) {
+      const input = src.getChannelData(ch);
+      const processed = spectralSubtractChannel(input, noiseProfile, strength);
+      out.copyToChannel(processed, ch);
+      await new Promise(r => setTimeout(r, 0));
+    }
+    return out;
+  }
+
+  // ============================================================
+  // W CZYTYWANIE
+  // ============================================================
+  async function loadFile(file) {
+    if (!file) return;
+    sourceFile = file;
+    emptyState.classList.add('hidden');
+    setProgress('Wczytywanie pliku…');
+    try {
+      const ab = await file.arrayBuffer();
+      originalBuffer = await getCtx().decodeAudioData(ab);
+    } catch (e) {
+      console.error(e);
+      alert('Nie mogę zdekodować pliku.\n\n' + e.message + '\n\nSpróbuj WAV lub MP3.');
+      setProgress(null);
+      return;
+    }
+    resetEditState(file.name);
+    await renderOps();
+    enableUI(true);
+    updateUndoRedo();
+    setProgress(null);
+  }
+
+  function resetEditState(fileName) {
+    opsStack = [[]]; opsCursor = 0;
+    selection = null; currentTime = 0;
+    noiseProfile = null;
+    viewStart = 0;
+    viewEnd = originalBuffer ? originalBuffer.duration : 0;
+    updateNoiseInfo();
+    const base = (fileName || 'moj-audio').replace(/\.[^.]+$/, '').replace(/[^\w\-]+/g, '-').slice(0, 60) || 'moj-audio';
+    $('export-name').value = base;
+    updateNamePreview();
+  }
+
+  function setProgress(msg) {
+    if (!msg) { progressWrap.classList.remove('visible'); progressWrap.textContent = ''; return; }
+    progressWrap.classList.add('visible');
+    progressWrap.textContent = msg;
+  }
+
+  function enableUI(on) {
+    ['undo','redo','reset','compare-btn',
+     'mark-start','mark-end','trim-preview','trim-clear','trim-apply','trim-delete',
+     'merge-files','merge-add-current','merge-crossfade','merge-go',
+     'fade-dur','fade-in','fade-out','gain-slider','gain-apply','normalize',
+     'eq-bass','eq-mid','eq-treble','eq-apply','eq-reset',
+     'reverse','reverb','speed-slider','speed-apply',
+     'play-pause','stop-btn','loop-btn','mute-btn','export',
+     'learn-noise','noise-strength','noise-highpass','denoise-apply'].forEach(id => {
+      const el = $(id); if (el) el.disabled = !on;
+    });
+    document.querySelectorAll('[data-preset]').forEach(b => b.disabled = !on);
+    updateMergeButtons();
+  }
+
+  function formatTime(t) {
+    if (!isFinite(t) || t < 0) t = 0;
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    const ms = Math.floor((t % 1) * 10);
+    return `${m}:${s.toString().padStart(2,'0')}.${ms}`;
+  }
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1024/1024).toFixed(1) + ' MB';
+  }
+
+  function updateFileInfo() {
+    if (!renderedBuffer) return;
+    const sec = renderedBuffer.duration;
+    const mm = Math.floor(sec / 60), ss = Math.floor(sec % 60);
+    const chs = renderedBuffer.numberOfChannels === 1 ? 'mono' : 'stereo';
+    fileInfo.textContent = `${chs} · ${renderedBuffer.sampleRate} Hz · ${mm}:${ss.toString().padStart(2,'0')}`;
+    if (sourceFile) sizeInfo.textContent = `oryginał: ${formatSize(sourceFile.size)}`;
+    updateStats();
+    updateEstSize();
+    updatePlayheadUI();
+  }
+
+  function updateStats() {
+    if (!renderedBuffer) {
+      ['stat-dur','stat-peak','stat-rms','stat-ch','stat-sr'].forEach(id => $(id).textContent = '—');
+      return;
+    }
+    let peak = 0, sumSq = 0, count = 0;
+    for (let c = 0; c < renderedBuffer.numberOfChannels; c++) {
+      const d = renderedBuffer.getChannelData(c);
+      for (let i = 0; i < d.length; i += 4) {
+        const v = d[i];
+        const a = v < 0 ? -v : v;
+        if (a > peak) peak = a;
+        sumSq += v * v; count++;
+      }
+    }
+    const rms = Math.sqrt(sumSq / count);
+    $('stat-dur').textContent = formatTime(renderedBuffer.duration);
+    $('stat-peak').textContent = (peak > 0 ? (20*Math.log10(peak)).toFixed(1) : '-∞') + ' dB';
+    $('stat-rms').textContent = (rms > 0 ? (20*Math.log10(rms)).toFixed(1) : '-∞') + ' dB';
+    $('stat-ch').textContent = renderedBuffer.numberOfChannels === 1 ? 'mono' : 'stereo';
+    $('stat-sr').textContent = `${(renderedBuffer.sampleRate/1000).toFixed(1)} kHz`;
+  }
+
+  // ============================================================
+  // OPERACJE BUFOROWE
+  // ============================================================
+  function makeBuffer(ch, len, sr) { return new AudioBuffer({ numberOfChannels: ch, length: len, sampleRate: sr }); }
+  function applyGainDb(buffer, dB) { return applyGain(buffer, Math.pow(10, dB / 20)); }
+  function applyGain(buffer, factor) {
+    if (factor === 1) return buffer;
+    const out = makeBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const s = buffer.getChannelData(c), d = out.getChannelData(c);
+      for (let i = 0; i < s.length; i++) d[i] = Math.max(-1, Math.min(1, s[i] * factor));
+    }
+    return out;
+  }
+  function applyFade(buffer, dir, durSec) {
+    const sr = buffer.sampleRate;
+    const n = Math.min(Math.floor(durSec * sr), buffer.length);
+    const out = makeBuffer(buffer.numberOfChannels, buffer.length, sr);
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const s = buffer.getChannelData(c), d = out.getChannelData(c);
+      d.set(s);
+      if (dir === 'in') for (let i = 0; i < n; i++) d[i] *= i / n;
+      else for (let i = 0; i < n; i++) d[buffer.length - n + i] *= 1 - i / n;
+    }
+    return out;
+  }
+  function applyReverse(buffer) {
+    const out = makeBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const s = buffer.getChannelData(c), d = out.getChannelData(c);
+      for (let i = 0; i < s.length; i++) d[i] = s[s.length - 1 - i];
+    }
+    return out;
+  }
+  function applyTrim(buffer, startSec, endSec) {
+    const sr = buffer.sampleRate;
+    const start = Math.max(0, Math.floor(startSec * sr));
+    const end = Math.min(buffer.length, Math.floor(endSec * sr));
+    const len = Math.max(1, end - start);
+    const out = makeBuffer(buffer.numberOfChannels, len, sr);
+    for (let c = 0; c < buffer.numberOfChannels; c++)
+      out.getChannelData(c).set(buffer.getChannelData(c).subarray(start, end));
+    return out;
+  }
+  function applyRemoveRange(buffer, startSec, endSec) {
+    const sr = buffer.sampleRate;
+    const start = Math.max(0, Math.floor(startSec * sr));
+    const end = Math.min(buffer.length, Math.floor(endSec * sr));
+    if (end <= start) return buffer;
+    const newLen = buffer.length - (end - start);
+    const out = makeBuffer(buffer.numberOfChannels, newLen, sr);
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const s = buffer.getChannelData(c), d = out.getChannelData(c);
+      d.set(s.subarray(0, start), 0);
+      d.set(s.subarray(end), start);
+    }
+    return out;
+  }
+  function applyNormalize(buffer, targetDb = -0.5) {
+    let peak = 0;
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const d = buffer.getChannelData(c);
+      for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > peak) peak = v; }
+    }
+    if (peak === 0) return buffer;
+    return applyGain(buffer, Math.pow(10, targetDb / 20) / peak);
+  }
+  async function applySpeed(buffer, ratio) {
+    const newLen = Math.round(buffer.length / ratio);
+    const oc = new OfflineAudioContext(buffer.numberOfChannels, newLen, buffer.sampleRate);
+    const src = oc.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = ratio;
+    src.connect(oc.destination);
+    src.start();
+    return await oc.startRendering();
+  }
+  async function applyEQ(buffer, bassDb, midDb, trebleDb) {
+    const oc = new OfflineAudioContext(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    const src = oc.createBufferSource(); src.buffer = buffer;
+    const bass = oc.createBiquadFilter(); bass.type = 'lowshelf'; bass.frequency.value = 200; bass.gain.value = bassDb;
+    const mid = oc.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1500; mid.Q.value = 1; mid.gain.value = midDb;
+    const treble = oc.createBiquadFilter(); treble.type = 'highshelf'; treble.frequency.value = 4000; treble.gain.value = trebleDb;
+    src.connect(bass); bass.connect(mid); mid.connect(treble); treble.connect(oc.destination);
+    src.start();
+    return await oc.startRendering();
+  }
+  async function applyReverb(buffer, amount = 0.35) {
+    const oc = new OfflineAudioContext(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    const src = oc.createBufferSource(); src.buffer = buffer;
+    const sr = buffer.sampleRate;
+    const irLen = Math.floor(sr * 1.8);
+    const ir = oc.createBuffer(2, irLen, sr);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 2.5);
+    }
+    const conv = oc.createConvolver(); conv.buffer = ir;
+    const wet = oc.createGain(); wet.gain.value = amount;
+    const dry = oc.createGain(); dry.gain.value = 1 - amount * 0.5;
+    src.connect(dry); src.connect(conv); conv.connect(wet);
+    dry.connect(oc.destination); wet.connect(oc.destination);
+    src.start();
+    return await oc.startRendering();
+  }
+
+  async function applyOp(buffer, op) {
+    switch (op.type) {
+      case 'gain':      return applyGainDb(buffer, op.value);
+      case 'fade':      return applyFade(buffer, op.direction, op.duration);
+      case 'reverse':   return applyReverse(buffer);
+      case 'trim':      return applyTrim(buffer, op.start, op.end);
+      case 'remove':    return applyRemoveRange(buffer, op.start, op.end);
+      case 'normalize': return applyNormalize(buffer, op.target ?? -0.5);
+      case 'speed':     return await applySpeed(buffer, op.ratio);
+      case 'eq':        return await applyEQ(buffer, op.bass, op.mid, op.treble);
+      case 'reverb':    return await applyReverb(buffer, op.amount ?? 0.35);
+      case 'denoise':   return await applyDenoise(buffer, op.profile, op.strength, op.highpass);
+    }
+    return buffer;
+  }
+
+  async function renderOps() {
+    if (!originalBuffer) return;
+    setProgress('Przetwarzanie…');
+    try {
+      let buf = originalBuffer;
+      for (const op of currentOps()) buf = await applyOp(buf, op);
+      renderedBuffer = buf;
+      peaks = computePeaks(buf);
+      updateOpsLog();
+      updateFileInfo();
+      updateTrimInfo();
+      drawWaveform();
+    } catch (e) {
+      console.error(e);
+      alert('Błąd: ' + e.message);
+    } finally { setProgress(null); }
+  }
+
+  function scheduleRender() {
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(renderOps, 80);
+  }
+
+  // ============================================================
+  // PEAKS + RYSOWANIE
+  // ============================================================
+  function computePeaks(buffer, samplesPerPeak = 512) {
+    const channels = [];
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const data = buffer.getChannelData(c);
+      const numPeaks = Math.ceil(data.length / samplesPerPeak);
+      const arr = new Float32Array(numPeaks * 2);
+      for (let i = 0; i < numPeaks; i++) {
+        let min = 1, max = -1;
+        const start = i * samplesPerPeak;
+        const end = Math.min(start + samplesPerPeak, data.length);
+        for (let j = start; j < end; j++) {
+          const v = data[j];
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        arr[i * 2] = min; arr[i * 2 + 1] = max;
+      }
+      channels.push(arr);
+    }
+    return channels;
+  }
+
+  function timeToX(t) {
+    const dur = (showingOriginal ? originalBuffer : renderedBuffer)?.duration || 1;
+    const vs = viewStart, ve = viewEnd || dur;
+    return ((t - vs) / (ve - vs)) * canvas.clientWidth;
+  }
+  function xToTime(x) {
+    const dur = renderedBuffer?.duration || 1;
+    const vs = viewStart, ve = viewEnd || dur;
+    return vs + (x / canvas.clientWidth) * (ve - vs);
+  }
+
+  function drawWaveform() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+      canvas.width = w * dpr; canvas.height = h * dpr;
+    }
+    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx2d.fillStyle = '#0a0a0e';
+    ctx2d.fillRect(0, 0, w, h);
+
+    const buf = showingOriginal ? originalBuffer : renderedBuffer;
+    const pk = showingOriginal ? (originalBuffer && computePeaks(originalBuffer)) : peaks;
+    if (!pk || !buf) return;
+
+    const rulerH = 22;
+    const waveH = h - rulerH;
+    const nCh = pk.length;
+    const laneH = waveH / nCh;
+    const dur = buf.duration;
+    const vs = viewStart, ve = viewEnd || dur;
+
+    // siatka
+    ctx2d.strokeStyle = '#1a1a22'; ctx2d.lineWidth = 1;
+    const stepSec = niceStep(ve - vs);
+    for (let t = Math.ceil(vs / stepSec) * stepSec; t < ve; t += stepSec) {
+      const x = timeToX(t);
+      ctx2d.beginPath(); ctx2d.moveTo(x, 0); ctx2d.lineTo(x, waveH); ctx2d.stroke();
+    }
+    for (let c = 0; c < nCh; c++) {
+      const cy = c * laneH + laneH / 2;
+      ctx2d.beginPath(); ctx2d.moveTo(0, cy); ctx2d.lineTo(w, cy); ctx2d.stroke();
+    }
+
+    // zaznaczenie
+    if (selection && !showingOriginal) {
+      const x1 = timeToX(selection.start), x2 = timeToX(selection.end);
+      ctx2d.fillStyle = 'rgba(58,92,255,0.20)';
+      ctx2d.fillRect(x1, 0, x2 - x1, waveH);
+      ctx2d.strokeStyle = '#3a5cff'; ctx2d.lineWidth = 1.5;
+      ctx2d.beginPath();
+      ctx2d.moveTo(x1, 0); ctx2d.lineTo(x1, waveH);
+      ctx2d.moveTo(x2, 0); ctx2d.lineTo(x2, waveH);
+      ctx2d.stroke();
+
+      // strzałki/główki markerów u góry
+      ctx2d.fillStyle = '#3a5cff';
+      // start — trójkącik
+      ctx2d.beginPath();
+      ctx2d.moveTo(x1, 0);
+      ctx2d.lineTo(x1 + 10, 0);
+      ctx2d.lineTo(x1, 10);
+      ctx2d.closePath(); ctx2d.fill();
+      // end
+      ctx2d.beginPath();
+      ctx2d.moveTo(x2, 0);
+      ctx2d.lineTo(x2 - 10, 0);
+      ctx2d.lineTo(x2, 10);
+      ctx2d.closePath(); ctx2d.fill();
+    }
+
+    // fala
+    const sr = buf.sampleRate;
+    const samplesPerPeak = 512;
+    for (let c = 0; c < nCh; c++) {
+      const arr = pk[c];
+      const cy = c * laneH + laneH / 2;
+      const halfH = laneH / 2 - 4;
+      ctx2d.fillStyle = showingOriginal ? '#7a7a86' : (c === 0 ? '#3a5cff' : '#6a86ff');
+      for (let x = 0; x < w; x++) {
+        const t = vs + (x / w) * (ve - vs);
+        const peakIdx = Math.floor(t * sr / samplesPerPeak);
+        if (peakIdx < 0 || peakIdx >= arr.length / 2) continue;
+        const minV = arr[peakIdx * 2];
+        const maxV = arr[peakIdx * 2 + 1];
+        const y1 = cy - maxV * halfH;
+        const y2 = cy - minV * halfH;
+        ctx2d.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+      }
+    }
+
+    // linijka
+    ctx2d.fillStyle = '#0e0e12';
+    ctx2d.fillRect(0, waveH, w, rulerH);
+    ctx2d.fillStyle = '#5a5a66';
+    ctx2d.font = '10px ui-monospace, monospace';
+    ctx2d.textBaseline = 'middle';
+    for (let t = Math.ceil(vs / stepSec) * stepSec; t < ve; t += stepSec) {
+      const x = timeToX(t);
+      ctx2d.fillRect(x, waveH, 1, 4);
+      ctx2d.fillText(formatRuler(t), x + 3, waveH + rulerH / 2);
+    }
+
+    // playhead
+    if (!showingOriginal) {
+      const px = timeToX(currentTime);
+      if (px >= 0 && px <= w) {
+        ctx2d.strokeStyle = '#ffffff'; ctx2d.lineWidth = 2;
+        ctx2d.beginPath(); ctx2d.moveTo(px, 0); ctx2d.lineTo(px, waveH); ctx2d.stroke();
+        ctx2d.fillStyle = '#ffffff';
+        ctx2d.beginPath();
+        ctx2d.moveTo(px - 5, 0); ctx2d.lineTo(px + 5, 0); ctx2d.lineTo(px, 8);
+        ctx2d.closePath(); ctx2d.fill();
+      }
+    }
+
+    if (isRecording) {
+      ctx2d.strokeStyle = 'rgba(220,38,38,0.6)';
+      ctx2d.lineWidth = 3;
+      ctx2d.strokeRect(1.5, 1.5, w - 3, h - 3);
+    }
+  }
+
+  function formatRuler(t) {
+    const m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return `${m}:${s.toString().padStart(2,'0')}`;
+  }
+  function niceStep(spanSec) {
+    const targets = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    for (const s of targets) if (spanSec / s < 12) return s;
+    return 600;
+  }
+
+  // ============================================================
+  // ODTWARZANIE
+  // ============================================================
+  function play() {
+    if (playing || !renderedBuffer) return;
+    const ctx = getCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    playSrc = ctx.createBufferSource();
+    playSrc.buffer = renderedBuffer;
+    playSrc.connect(masterGain);
+    playSrc.onended = () => {
+      if (playingSelection) {
+        playingSelection = false;
+        stop();
+        currentTime = selection.end;
+        updatePlayheadUI(); drawWaveform();
+        $('trim-preview').textContent = '▶ Odtwórz fragment';
+        return;
+      }
+      if (!playing) return;
+      if (loop) { currentTime = selection ? selection.start : 0; playing = false; play(); }
+      else { stop(); currentTime = 0; updatePlayheadUI(); drawWaveform(); }
+    };
+    const startAt = selection && currentTime < selection.start ? selection.start :
+                    (currentTime >= renderedBuffer.duration ? 0 : currentTime);
+    currentTime = startAt;
+    playSrc.start(0, startAt);
+    playStartCtxTime = ctx.currentTime - startAt;
+    playing = true;
+    $('play-pause').textContent = '⏸';
+    startLevelMeter();
+    requestAnimationFrame(tick);
+  }
+  function stop() {
+    if (playSrc) { try { playSrc.stop(); } catch(_) {} playSrc.disconnect(); playSrc = null; }
+    playing = false;
+    playingSelection = false;
+    $('play-pause').textContent = '▶';
+    stopLevelMeter();
+  }
+  function pause() {
+    if (!playing || !playSrc) return;
+    currentTime = audioCtx.currentTime - playStartCtxTime;
+    stop(); drawWaveform();
+  }
+  function tick() {
+    if (!playing) return;
+    currentTime = audioCtx.currentTime - playStartCtxTime;
+    if (currentTime >= renderedBuffer.duration) return;
+    if (playingSelection && currentTime >= selection.end) {
+      stop();
+      currentTime = selection.end;
+      updatePlayheadUI(); drawWaveform();
+      $('trim-preview').textContent = '▶ Odtwórz fragment';
+      return;
+    }
+    if (!playingSelection && selection && currentTime > selection.end) {
+      if (loop) { currentTime = selection.start; stop(); play(); return; }
+      else { stop(); currentTime = selection.end; drawWaveform(); updatePlayheadUI(); return; }
+    }
+    updatePlayheadUI(); drawWaveform();
+    requestAnimationFrame(tick);
+  }
+  function updatePlayheadUI() {
+    const dur = renderedBuffer ? renderedBuffer.duration : 0;
+    timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(dur)}`;
+  }
+
+  // ============================================================
+  // MIERNIK POZIOMU
+  // ============================================================
+  const lvlData = new Float32Array(2048);
+  function startLevelMeter() {
+    if (levelRAF) return;
+    function frame() {
+      levelRAF = requestAnimationFrame(frame);
+      if (!analyser) return;
+      analyser.getFloatTimeDomainData(lvlData);
+      let peak = 0;
+      for (let i = 0; i < lvlData.length; i += 2) {
+        const a = Math.abs(lvlData[i]);
+        if (a > peak) peak = a;
+      }
+      const pct = Math.min(100, Math.pow(peak, 0.5) * 100);
+      $('lvl-l').style.width = pct + '%';
+      $('lvl-r').style.width = pct + '%';
+    }
+    frame();
+  }
+  function stopLevelMeter() {
+    if (levelRAF) { cancelAnimationFrame(levelRAF); levelRAF = null; }
+    $('lvl-l').style.width = '0%';
+    $('lvl-r').style.width = '0%';
+  }
+
+  // ============================================================
+  // MYSZ NA FALI
+  // ============================================================
+  canvas.addEventListener('mousedown', e => {
+    if (!renderedBuffer) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    mouseDownX = x; dragging = true;
+    dragStart = xToTime(x);
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging || !renderedBuffer) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(canvas.clientWidth, e.clientX - rect.left));
+    const t = xToTime(x);
+    if (Math.abs(x - mouseDownX) > 4) {
+      const a = Math.min(dragStart, t), b = Math.max(dragStart, t);
+      selection = { start: Math.max(0, a), end: Math.min(renderedBuffer.duration, b) };
+      updateTrimInfo(); drawWaveform();
+    }
+  });
+  window.addEventListener('mouseup', e => {
+    if (!dragging) return;
+    dragging = false;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (Math.abs(x - mouseDownX) <= 4) {
+      currentTime = Math.max(0, Math.min(renderedBuffer.duration, xToTime(x)));
+      updatePlayheadUI(); drawWaveform();
+    }
+  });
+  canvas.addEventListener('wheel', e => {
+    if (!renderedBuffer) return;
+    e.preventDefault();
+    const dur = renderedBuffer.duration;
+    if (!viewEnd) { viewStart = 0; viewEnd = dur; }
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width;
+    const centerT = viewStart + mx * (viewEnd - viewStart);
+    const factor = e.deltaY < 0 ? 0.85 : 1.18;
+    let newSpan = Math.max(0.2, Math.min(dur, (viewEnd - viewStart) * factor));
+    viewStart = Math.max(0, centerT - mx * newSpan);
+    viewEnd = Math.min(dur, viewStart + newSpan);
+    if (viewEnd - viewStart < newSpan) viewStart = Math.max(0, viewEnd - newSpan);
+    drawWaveform();
+  }, { passive: false });
+  canvas.addEventListener('dblclick', () => {
+    viewStart = 0;
+    viewEnd = renderedBuffer ? renderedBuffer.duration : 0;
+    drawWaveform();
+  });
+
+  // ============================================================
+  // HISTORIA
+  // ============================================================
+  function pushOp(op) {
+    const newStack = opsStack.slice(0, opsCursor + 1);
+    newStack.push([...newStack[newStack.length - 1], op]);
+    opsStack = newStack;
+    opsCursor = opsStack.length - 1;
+    updateUndoRedo(); scheduleRender();
+  }
+  function updateUndoRedo() {
+    $('undo').disabled = opsCursor === 0;
+    $('redo').disabled = opsCursor >= opsStack.length - 1;
+    $('reset').disabled = opsCursor === 0;
+    const n = currentOps().length;
+    const badge = $('ops-badge');
+    badge.textContent = n === 0 ? '0 zmian' : (n === 1 ? '1 zmiana' : `${n} zmian`);
+    badge.classList.toggle('empty', n === 0);
+  }
+  $('undo').onclick = () => { if (opsCursor > 0) { opsCursor--; scheduleRender(); updateUndoRedo(); } };
+  $('redo').onclick = () => { if (opsCursor < opsStack.length - 1) { opsCursor++; scheduleRender(); updateUndoRedo(); } };
+  $('reset').onclick = () => {
+    if (currentOps().length && !confirm('Przywrócić oryginał?')) return;
+    opsCursor = 0; selection = null;
+    updateUndoRedo(); scheduleRender();
+  };
+
+  // A/B
+  const cmpBtn = $('compare-btn');
+  ['mousedown','touchstart'].forEach(ev => cmpBtn.addEventListener(ev, () => {
+    showingOriginal = true; drawWaveform();
+  }));
+  ['mouseup','mouseleave','touchend'].forEach(ev => cmpBtn.addEventListener(ev, () => {
+    showingOriginal = false; drawWaveform();
+  }));
+  document.addEventListener('keydown', e => {
+    if (e.key === '\\' && !e.repeat && !e.target.matches('input,textarea,select')) {
+      showingOriginal = true; drawWaveform();
+    }
+  });
+  document.addEventListener('keyup', e => {
+    if (e.key === '\\') { showingOriginal = false; drawWaveform(); }
+  });
+
+  // ============================================================
+  // WCZYTYWANIE
+  // ============================================================
+  $('file').onchange = e => { const f = e.target.files[0]; if (f) loadFile(f); };
+  document.body.addEventListener('dragover', e => e.preventDefault());
+  document.body.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+  });
+  document.addEventListener('paste', e => {
+    const items = e.clipboardData?.items; if (!items) return;
+    for (const it of items) {
+      if (it.type.startsWith('audio/') || it.type.startsWith('video/')) { loadFile(it.getAsFile()); break; }
+    }
+  });
+
+  // ============================================================
+  // NAZWA / ROZMIAR
+  // ============================================================
+  function sanitizeName(n) {
+    return (n || 'moj-audio').trim()
+      .replace(/\.(wav|mp3|ogg|m4a|flac|aac|opus|webm)$/i, '')
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+      .replace(/\s+/g, '-').slice(0, 80) || 'moj-audio';
+  }
+  function updateNamePreview() {
+    const fmt = $('out-format').value;
+    $('name-preview').textContent = `${sanitizeName($('export-name').value)}.${fmt}`;
+  }
+  function updateEstSize() {
+    if (!renderedBuffer) { $('est-size').textContent = '—'; return; }
+    const fmt = $('out-format').value;
+    let bytes;
+    if (fmt === 'wav') {
+      bytes = renderedBuffer.length * renderedBuffer.numberOfChannels * 2 + 44;
+    } else {
+      const br = +$('quality').value * 1000;
+      bytes = Math.round(renderedBuffer.duration * br / 8);
+    }
+    $('est-size').textContent = `${fmt.toUpperCase()} ~${formatSize(bytes)}`;
+  }
+  $('export-name').addEventListener('input', updateNamePreview);
+  $('out-format').addEventListener('change', () => { updateNamePreview(); updateEstSize(); });
+  $('quality').addEventListener('change', updateEstSize);
+
+  // ============================================================
+  // INFO O ZAZNACZENIU + KROKI
+  // ============================================================
+  function updateTrimInfo() {
+    if (selection) {
+      const dur = selection.end - selection.start;
+      $('trim-info').textContent = `${formatTime(selection.start)} → ${formatTime(selection.end)} (${dur.toFixed(2)}s)`;
+      selInfo.textContent = `zaznaczenie: ${selection.start.toFixed(2)}s – ${selection.end.toFixed(2)}s (${dur.toFixed(2)}s)`;
+    } else {
+      $('trim-info').textContent = 'Brak zaznaczenia — ustaw początek i koniec';
+      selInfo.textContent = '—';
+    }
+    updateStepsState();
+  }
+
+  function updateStepsState() {
+    $('step-trim-a').classList.toggle('done', !!selection);
+    $('step-trim-b').classList.toggle('done', !!selection);
+    $('step-trim-c').classList.toggle('done', !!selection);
+    $('step-1').classList.toggle('done', !!selection);
+    $('step-2').classList.toggle('done', !!noiseProfile);
+    $('step-3').classList.toggle('done', !!noiseProfile);
+    // przyciski aktywne tylko gdy zaznaczenie sensowne
+    const valid = selection && (selection.end - selection.start) > 0.01;
+    $('trim-apply').disabled = !valid;
+    $('trim-delete').disabled = !valid;
+    $('trim-preview').disabled = !valid;
+    $('trim-clear').disabled = !valid;
+  }
+
+  function updateNoiseInfo() {
+    if (noiseProfile) {
+      $('noise-info').textContent = `✓ Profil szumu gotowy (${N_BINS} pasm)`;
+      $('noise-info').style.color = '#16a34a';
+      $('learn-noise').classList.add('learned');
+      $('denoise-apply').disabled = false;
+    } else {
+      $('noise-info').textContent = 'Brak profilu szumu';
+      $('noise-info').style.color = '';
+      $('learn-noise').classList.remove('learned');
+      $('denoise-apply').disabled = true;
+    }
+  }
+
+  // ============================================================
+  // PRZYCINANIE — PRZYCISKI PUNKTÓW
+  // ============================================================
+  $('mark-start').onclick = () => {
+    if (!renderedBuffer) return;
+    const s = currentTime;
+    const e = selection ? selection.end : renderedBuffer.duration;
+    if (s >= e) {
+      alert('Początek musi być przed końcem. Ustaw koniec dalej na fali.');
+      return;
+    }
+    selection = { start: s, end: e };
+    updateTrimInfo(); drawWaveform();
+  };
+  $('mark-end').onclick = () => {
+    if (!renderedBuffer) return;
+    const s = selection ? selection.start : 0;
+    const e = currentTime;
+    if (e <= s) {
+      alert('Koniec musi być za początkiem. Ustaw początek wcześniej.');
+      return;
+    }
+    selection = { start: s, end: e };
+    updateTrimInfo(); drawWaveform();
+  };
+  $('trim-preview').onclick = () => {
+    if (!selection || !renderedBuffer) return;
+    if (playingSelection) {
+      stop();
+      $('trim-preview').textContent = '▶ Odtwórz fragment';
+      return;
+    }
+    stop();
+    currentTime = selection.start;
+    playingSelection = true;
+    $('trim-preview').textContent = '⏹ Stop';
+    setTimeout(() => play(), 10);
+  };
+  $('trim-apply').onclick = () => {
+    if (!selection) return;
+    pushOp({ type:'trim', start: selection.start, end: selection.end });
+    selection = null;
+    currentTime = 0;
+    updateTrimInfo();
+  };
+  $('trim-delete').onclick = () => {
+    if (!selection) return;
+    pushOp({ type:'remove', start: selection.start, end: selection.end });
+    selection = null;
+    currentTime = 0;
+    updateTrimInfo();
+  };
+  $('trim-clear').onclick = () => {
+    selection = null;
+    updateTrimInfo();
+    drawWaveform();
+  };
+
+  // ============================================================
+  // ŁĄCZENIE NAGRAŃ
+  // ============================================================
+  function updateMergeButtons() {
+    const has = mergeQueue.length >= 2;
+    $('merge-go').disabled = !has;
+    $('merge-crossfade').disabled = mergeQueue.length === 0;
+  }
+
+  function drawMiniWave(buffer, canvasEl) {
+    const w = 40 * (window.devicePixelRatio || 1);
+    const h = 28 * (window.devicePixelRatio || 1);
+    canvasEl.width = w; canvasEl.height = h;
+    const c = canvasEl.getContext('2d');
+    c.fillStyle = '#0a0a0e';
+    c.fillRect(0, 0, w, h);
+    if (!buffer) return;
+    const data = buffer.getChannelData(0);
+    const step = Math.max(1, Math.floor(data.length / w));
+    c.fillStyle = '#3a5cff';
+    for (let x = 0; x < w; x++) {
+      let min = 1, max = -1;
+      for (let i = 0; i < step; i++) {
+        const v = data[x * step + i] || 0;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      const y1 = (1 + min) * h / 2;
+      const y2 = (1 + max) * h / 2;
+      c.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+    }
+  }
+
+  function renderMergeQueue() {
+    mergeQueueEl.innerHTML = '';
+    mergeQueue.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'mq-item';
+      const cv = document.createElement('canvas');
+      const info = document.createElement('div');
+      info.className = 'mq-info';
+      const dur = item.buffer.duration;
+      const mm = Math.floor(dur / 60), ss = Math.floor(dur % 60);
+      info.innerHTML = `<div class="mq-name" title="${item.name}">${item.name}</div>
+                        <div class="mq-meta">${mm}:${ss.toString().padStart(2,'0')} · ${(item.buffer.sampleRate/1000).toFixed(1)} kHz · ${item.buffer.numberOfChannels === 1 ? 'mono' : 'stereo'}</div>`;
+      const btns = document.createElement('div');
+      btns.className = 'mq-btns';
+      const upBtn = document.createElement('button');
+      upBtn.textContent = '↑'; upBtn.title = 'W górę'; upBtn.disabled = i === 0;
+      upBtn.onclick = () => { if (i > 0) { [mergeQueue[i-1], mergeQueue[i]] = [mergeQueue[i], mergeQueue[i-1]]; renderMergeQueue(); } };
+      const downBtn = document.createElement('button');
+      downBtn.textContent = '↓'; downBtn.title = 'W dół'; downBtn.disabled = i === mergeQueue.length - 1;
+      downBtn.onclick = () => { if (i < mergeQueue.length - 1) { [mergeQueue[i+1], mergeQueue[i]] = [mergeQueue[i], mergeQueue[i+1]]; renderMergeQueue(); } };
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕'; delBtn.title = 'Usuń z kolejki'; delBtn.className = 'danger';
+      delBtn.onclick = () => { mergeQueue.splice(i, 1); renderMergeQueue(); updateMergeButtons(); };
+      btns.append(upBtn, downBtn, delBtn);
+      div.append(cv, info, btns);
+      mergeQueueEl.appendChild(div);
+      // rysuj mini falę po dodaniu do DOM
+      requestAnimationFrame(() => drawMiniWave(item.buffer, cv));
+    });
+    updateMergeButtons();
+  }
+
+  async function addMergeFiles(files) {
+    for (const f of files) {
+      try {
+        const ab = await f.arrayBuffer();
+        const buf = await getCtx().decodeAudioData(ab);
+        mergeQueue.push({ name: f.name, buffer: buf });
+      } catch (e) {
+        console.error(e);
+        alert('Nie udało się wczytać pliku do kolejki:\n' + f.name + '\n' + e.message);
+      }
+    }
+    renderMergeQueue();
+    updateMergeButtons();
+  }
+
+  $('merge-files').onchange = e => addMergeFiles([...e.target.files]);
+
+  $('merge-add-current').onclick = () => {
+    if (!renderedBuffer) return;
+    const name = (sourceFile && sourceFile.name) ? sourceFile.name : 'bieżące nagranie';
+    mergeQueue.push({ name: name + ' (bieżące)', buffer: renderedBuffer });
+    renderMergeQueue();
+    updateMergeButtons();
+  };
+
+  $('merge-crossfade').oninput = e => {
+    $('merge-crossfade-val').textContent = e.target.value + 's';
+  };
+
+  // Konkatencja z opcjonalnym crossfade
+  function concatBuffers(buffers, crossfadeSec) {
+    // wszystkie do sample rate pierwszego
+    const sr = buffers[0].sampleRate;
+    const channels = Math.max(1, Math.min(2, Math.max(...buffers.map(b => b.numberOfChannels))));
+    const crossLen = Math.round(crossfadeSec * sr);
+
+    // total length
+    let total = 0;
+    for (const b of buffers) total += b.length;
+    if (crossLen > 0 && buffers.length > 1) {
+      total -= crossLen * (buffers.length - 1);
+    }
+
+    const out = new AudioBuffer({ numberOfChannels: channels, length: total, sampleRate: sr });
+
+    for (let c = 0; c < channels; c++) {
+      const outData = out.getChannelData(c);
+      let writePos = 0;
+
+      for (let i = 0; i < buffers.length; i++) {
+        const buf = buffers[i];
+        const srcCh = Math.min(c, buf.numberOfChannels - 1);
+        const src = buf.getChannelData(srcCh);
+        const isFirst = i === 0;
+        const isLast = i === buffers.length - 1;
+        const effectiveCross = Math.min(crossLen, src.length, out.length - writePos);
+
+        for (let j = 0; j < src.length; j++) {
+          let v = src[j];
+
+          // fade-in na początku (nie dla pierwszego)
+          if (!isFirst && crossLen > 0 && j < crossLen && j < src.length) {
+            v *= j / crossLen;
+          }
+
+          // fade-out na końcu (nie dla ostatniego)
+          if (!isLast && crossLen > 0 && j >= src.length - crossLen) {
+            const t = (src.length - j) / crossLen;
+            v *= t;
+          }
+
+          const dst = writePos + j;
+          if (dst >= out.length) break;
+          outData[dst] += v;
+        }
+
+        writePos += src.length - (isLast ? 0 : crossLen);
+      }
+    }
+
+    // clamp
+    for (let c = 0; c < channels; c++) {
+      const d = out.getChannelData(c);
+      for (let i = 0; i < d.length; i++) {
+        if (d[i] > 1) d[i] = 1;
+        else if (d[i] < -1) d[i] = -1;
+      }
+    }
+
+    return out;
+  }
+
+  $('merge-go').onclick = async () => {
+    if (mergeQueue.length < 2) {
+      alert('Dodaj co najmniej 2 pliki do kolejki.');
+      return;
+    }
+    setProgress('Analiza plików…');
+    try {
+      // jeśli różne sample rate / kanały — resample do pierwszego
+      const sr = mergeQueue[0].buffer.sampleRate;
+      const ch = Math.max(...mergeQueue.map(i => i.buffer.numberOfChannels));
+      const norm = [];
+      for (let i = 0; i < mergeQueue.length; i++) {
+        const b = mergeQueue[i].buffer;
+        if (b.sampleRate !== sr || b.numberOfChannels !== ch) {
+          setProgress(`Dopasowanie pliku ${i+1}/${mergeQueue.length}…`);
+          const newLen = Math.round(b.duration * sr);
+          const oc = new OfflineAudioContext(ch, newLen, sr);
+          const src = oc.createBufferSource();
+          src.buffer = b;
+          src.connect(oc.destination);
+          src.start();
+          norm.push(await oc.startRendering());
+        } else {
+          norm.push(b);
+        }
+      }
+
+      setProgress('Sklejanie…');
+      await new Promise(r => setTimeout(r, 20));
+      const crossfadeSec = +$('merge-crossfade').value;
+      const merged = concatBuffers(norm, crossfadeSec);
+
+      // wynik staje się nowym oryginałem
+      originalBuffer = merged;
+      sourceFile = new File([new Blob([new Uint8Array(merged.length * merged.numberOfChannels * 2)])],
+                            'polaczone.mp3', { type: 'audio/mpeg' });
+      // ustaw poprawny rozmiar źródłowy — szacowanie z długości i kanałów
+      resetEditState('polaczone');
+      await renderOps();
+      enableUI(true);
+      updateUndoRedo();
+
+      // wyczyść kolejkę i wróć do widoku całości
+      mergeQueue = [];
+      renderMergeQueue();
+      updateMergeButtons();
+      viewStart = 0;
+      viewEnd = originalBuffer.duration;
+      drawWaveform();
+
+      sizeInfo.textContent = `połączono ${norm.length} plików`;
+    } catch (e) {
+      console.error(e);
+      alert('Błąd łączenia: ' + e.message);
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  // ============================================================
+  // FADE
+  // ============================================================
+  $('fade-dur').oninput = e => { $('fade-dur-val').textContent = e.target.value + 's'; };
+  $('fade-in').onclick  = () => pushOp({ type:'fade', direction:'in', duration: +$('fade-dur').value });
+  $('fade-out').onclick = () => pushOp({ type:'fade', direction:'out', duration: +$('fade-dur').value });
+
+  // ============================================================
+  // GAIN
+  // ============================================================
+  $('gain-slider').oninput = e => {
+    const v = +e.target.value;
+    $('gain-val').textContent = (v > 0 ? '+' : '') + v + 'dB';
+  };
+  $('gain-apply').onclick = () => {
+    const v = +$('gain-slider').value;
+    if (v === 0) return;
+    pushOp({ type:'gain', value: v });
+    $('gain-slider').value = 0; $('gain-val').textContent = '0dB';
+  };
+  $('normalize').onclick = () => pushOp({ type:'normalize', target: -0.5 });
+
+  // ============================================================
+  // EQ
+  // ============================================================
+  ['bass','mid','treble'].forEach(b => {
+    $('eq-' + b).oninput = e => { $('eq-' + b + '-val').textContent = e.target.value; };
+  });
+  $('eq-apply').onclick = () => {
+    const b = +$('eq-bass').value, m = +$('eq-mid').value, t = +$('eq-treble').value;
+    if (b === 0 && m === 0 && t === 0) return;
+    pushOp({ type:'eq', bass: b, mid: m, treble: t });
+    $('eq-reset').click();
+  };
+  $('eq-reset').onclick = () => {
+    $('eq-bass').value = 0; $('eq-bass-val').textContent = '0';
+    $('eq-mid').value = 0; $('eq-mid-val').textContent = '0';
+    $('eq-treble').value = 0; $('eq-treble-val').textContent = '0';
+  };
+
+  // ============================================================
+  // EFEKTY
+  // ============================================================
+  $('reverse').onclick = () => pushOp({ type:'reverse' });
+  $('reverb').onclick = () => pushOp({ type:'reverb', amount: 0.35 });
+
+  // ============================================================
+  // SPEED
+  // ============================================================
+  $('speed-slider').oninput = e => { $('speed-val').textContent = e.target.value + '×'; };
+  $('speed-apply').onclick = () => {
+    const r = +$('speed-slider').value;
+    if (r === 1) return;
+    pushOp({ type:'speed', ratio: r });
+    $('speed-slider').value = 1; $('speed-val').textContent = '1×';
+  };
+
+  // ============================================================
+  // CZYSZCZENIE Z SZUMÓW
+  // ============================================================
+  $('noise-strength').oninput = e => { $('noise-strength-val').textContent = e.target.value; };
+  $('noise-highpass').oninput = e => { $('noise-hp-val').textContent = e.target.value; };
+
+  $('learn-noise').onclick = () => {
+    if (!renderedBuffer) return;
+    if (!selection || (selection.end - selection.start) < 0.1) {
+      alert('Najpierw zaznacz na fali fragment z samym szumem (min. 0,1 s).');
+      return;
+    }
+    try {
+      setProgress('Analiza szumu…');
+      noiseProfile = learnNoiseProfile(renderedBuffer, selection.start, selection.end);
+      updateNoiseInfo();
+      updateStepsState();
+      setProgress(null);
+    } catch (e) {
+      setProgress(null);
+      alert('Błąd: ' + e.message);
+    }
+  };
+
+  $('denoise-apply').onclick = () => {
+    if (!noiseProfile) {
+      alert('Najpierw kliknij „Naucz się szumu".');
+      return;
+    }
+    const strength = +$('noise-strength').value;
+    const hp = +$('noise-highpass').value;
+    pushOp({
+      type: 'denoise',
+      profile: noiseProfile.slice(),
+      strength,
+      highpass: hp,
+    });
+  };
+
+  // ============================================================
+  // PRESETY
+  // ============================================================
+  const PRESETS = {
+    louder:  [{ type:'gain', value: 3.5 }],
+    quieter: [{ type:'gain', value: -3.5 }],
+    podcast: [{ type:'normalize', target: -1 }, { type:'eq', bass: 2, mid: 3, treble: -1 }],
+    music:   [{ type:'eq', bass: 3, mid: 0, treble: 2 }],
+    radio:   [{ type:'normalize', target: -0.5 }, { type:'eq', bass: 0, mid: 4, treble: -3 }],
+    clean:   [{ type:'normalize', target: -1.5 }, { type:'eq', bass: -2, mid: 0, treble: 2 }],
+    faster:  [{ type:'speed', ratio: 1.25 }],
+    slower:  [{ type:'speed', ratio: 0.75 }],
+  };
+  document.querySelectorAll('[data-preset]').forEach(b => {
+    b.onclick = () => {
+      const p = PRESETS[b.dataset.preset];
+      if (!p) return;
+      for (const op of p) pushOp(op);
+    };
+  });
+
+  // ============================================================
+  // ODTWARZANIE UI
+  // ============================================================
+  $('play-pause').onclick = () => playing ? pause() : play();
+  $('stop-btn').onclick = () => { stop(); currentTime = selection ? selection.start : 0; updatePlayheadUI(); drawWaveform(); };
+  $('loop-btn').onclick = () => { loop = !loop; $('loop-btn').style.color = loop ? '#3a5cff' : ''; };
+  $('mute-btn').onclick = () => {
+    muted = !muted;
+    if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+    $('mute-btn').textContent = muted ? '🔇' : '🔊';
+  };
+
+  // ============================================================
+  // KLAWIATURA
+  // ============================================================
+  document.addEventListener('keydown', e => {
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.code === 'Space') { e.preventDefault(); $('play-pause').click(); }
+    if (e.key === 'Home') { currentTime = 0; updatePlayheadUI(); drawWaveform(); }
+    if (e.key === 'Escape') { selection = null; updateTrimInfo(); drawWaveform(); }
+    if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); $('mark-start').click(); }
+    if (e.key.toLowerCase() === 'k' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); $('mark-end').click(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); $('undo').click(); }
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); $('redo').click(); }
+  });
+
+  // ============================================================
+  // NAGRYWANIE
+  // ============================================================
+  async function startRecording() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false,
+      }});
+    } catch (e) { alert('Nie mogę uzyskać dostępu do mikrofonu.\n\n' + e.message); return; }
+    const ctx = getCtx();
+    if (ctx.state === 'suspended') await ctx.resume();
+    const micSrc = ctx.createMediaStreamSource(micStream);
+    micAnalyser = ctx.createAnalyser();
+    micAnalyser.fftSize = 2048;
+    micSrc.connect(micAnalyser);
+    mediaRecorder = new MediaRecorder(micStream);
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = onRecordingStop;
+    mediaRecorder.start();
+    isRecording = true;
+    recStartTime = Date.now();
+    recIndicator.classList.add('visible');
+    $('record-btn').classList.add('recording');
+    $('record-btn').textContent = '⏹ Zatrzymaj nagrywanie';
+    $('record-info').textContent = 'Nagrywanie… kliknij, żeby zatrzymać';
+    recTimer = setInterval(() => {
+      $('rec-time').textContent = ((Date.now() - recStartTime) / 1000).toFixed(1) + 's';
+    }, 100);
+    startMicMeter();
+  }
+  let micMeterRAF = null;
+  const micData = new Float32Array(2048);
+  function startMicMeter() {
+    if (micMeterRAF) return;
+    function frame() {
+      micMeterRAF = requestAnimationFrame(frame);
+      if (!micAnalyser || !isRecording) return;
+      micAnalyser.getFloatTimeDomainData(micData);
+      let peak = 0;
+      for (let i = 0; i < micData.length; i += 2) {
+        const a = Math.abs(micData[i]);
+        if (a > peak) peak = a;
+      }
+      const pct = Math.min(100, Math.pow(peak, 0.5) * 100);
+      $('lvl-l').style.width = pct + '%';
+      $('lvl-r').style.width = pct + '%';
+    }
+    frame();
+  }
+  function stopMicMeter() {
+    if (micMeterRAF) { cancelAnimationFrame(micMeterRAF); micMeterRAF = null; }
+    $('lvl-l').style.width = '0%';
+    $('lvl-r').style.width = '0%';
+  }
+  async function onRecordingStop() {
+    stopMicMeter();
+    clearInterval(recTimer);
+    recIndicator.classList.remove('visible');
+    $('record-btn').classList.remove('recording');
+    $('record-btn').textContent = '🎙 Nagraj z mikrofonu';
+    isRecording = false;
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    if (recordedChunks.length === 0) return;
+    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+    recordedChunks = [];
+    $('record-info').textContent = 'Przetwarzanie nagrania…';
+    setProgress('Dekodowanie nagrania…');
+    try {
+      const ab = await blob.arrayBuffer();
+      const buf = await getCtx().decodeAudioData(ab);
+      if (originalBuffer && currentOps().length > 0) {
+        if (!confirm('Nagranie zastąpi obecny plik. Kontynuować?')) {
+          $('record-info').textContent = 'Nagranie odrzucone';
+          setProgress(null); return;
+        }
+      }
+      const now = new Date();
+      const fname = `nagranie-${now.getHours()}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}.webm`;
+      sourceFile = new File([blob], fname, { type: 'audio/webm' });
+      originalBuffer = buf;
+      resetEditState(fname);
+      emptyState.classList.add('hidden');
+      await renderOps();
+      enableUI(true);
+      updateUndoRedo();
+      $('record-info').textContent = 'Nagranie gotowe. Możesz edytować.';
+    } catch (e) {
+      console.error(e);
+      alert('Błąd przetwarzania nagrania: ' + e.message);
+      $('record-info').textContent = 'Błąd';
+    } finally { setProgress(null); }
+  }
+  $('record-btn').onclick = () => {
+    if (isRecording) mediaRecorder.stop();
+    else startRecording();
+  };
+
+  // ============================================================
+  // EKSPORT
+  // ============================================================
+  function encodeWAV(buffer) {
+    const numCh = buffer.numberOfChannels;
+    const len = buffer.length;
+    const sr = buffer.sampleRate;
+    const blockAlign = numCh * 2;
+    const dataSize = len * blockAlign;
+    const ab = new ArrayBuffer(44 + dataSize);
+    const dv = new DataView(ab);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + dataSize, true); w(8, 'WAVE');
+    w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+    dv.setUint16(22, numCh, true); dv.setUint32(24, sr, true);
+    dv.setUint32(28, sr * blockAlign, true); dv.setUint16(32, blockAlign, true);
+    dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, dataSize, true);
+    let off = 44;
+    const chs = [];
+    for (let c = 0; c < numCh; c++) chs.push(buffer.getChannelData(c));
+    for (let i = 0; i < len; i++) {
+      for (let c = 0; c < numCh; c++) {
+        let s = Math.max(-1, Math.min(1, chs[c][i]));
+        dv.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        off += 2;
+      }
+    }
+    return new Blob([ab], { type: 'audio/wav' });
+  }
+
+  async function loadLame() {
+    if (window.lamejs) return window.lamejs;
+    const urls = [
+      'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js',
+      'https://unpkg.com/lamejs@1.2.1/lame.min.js',
+    ];
+    for (const url of urls) {
+      try {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = url;
+          s.onload = res;
+          s.onerror = () => rej(new Error('Nie załadowano: ' + url));
+          document.head.appendChild(s);
+        });
+        if (window.lamejs) return window.lamejs;
+      } catch (e) { console.warn('lame.js load failed:', url, e); }
+    }
+    throw new Error('Nie udało się załadować enkodera MP3 (lame.js). Sprawdź internet / antywirusa.');
+  }
+
+  function floatTo16(f32) {
+    const out = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++) {
+      let s = Math.max(-1, Math.min(1, f32[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return out;
+  }
+
+  async function encodeMP3(buffer, kbps) {
+    const lame = await loadLame();
+    const numCh = Math.min(2, buffer.numberOfChannels);
+    const sr = buffer.sampleRate;
+    const encoder = new lame.Mp3Encoder(numCh, sr, kbps);
+    const left = floatTo16(buffer.getChannelData(0));
+    const right = numCh > 1 ? floatTo16(buffer.getChannelData(1)) : null;
+    const blockSize = 1152;
+    const chunks = [];
+    const total = left.length;
+    let lastReport = 0;
+    for (let i = 0; i < total; i += blockSize) {
+      const l = left.subarray(i, i + blockSize);
+      const r = right ? right.subarray(i, i + blockSize) : null;
+      const buf = right ? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l);
+      if (buf.length > 0) chunks.push(new Uint8Array(buf));
+      const pct = i / total;
+      if (pct - lastReport > 0.05) {
+        lastReport = pct;
+        setProgress(`Kodowanie MP3… ${Math.round(pct * 100)}%`);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+    const last = encoder.flush();
+    if (last.length > 0) chunks.push(new Uint8Array(last));
+    return new Blob(chunks, { type: 'audio/mpeg' });
+  }
+
+  async function resample(buffer, targetSr, targetCh) {
+    targetSr = targetSr || buffer.sampleRate;
+    targetCh = targetCh || buffer.numberOfChannels;
+    if (targetSr === buffer.sampleRate && targetCh === buffer.numberOfChannels) return buffer;
+    const newLen = Math.round(buffer.duration * targetSr);
+    const oc = new OfflineAudioContext(targetCh, newLen, targetSr);
+    const src = oc.createBufferSource();
+    src.buffer = buffer;
+    src.connect(oc.destination);
+    src.start();
+    return await oc.startRendering();
+  }
+
+  async function exportFile() {
+    if (!renderedBuffer) return;
+    try {
+      const fmt = $('out-format').value;
+      const q = +$('quality').value;
+      const targetSr = +$('sample-rate').value || null;
+      const targetCh = +$('channels').value || null;
+      const baseName = sanitizeName($('export-name').value);
+
+      let buf = renderedBuffer;
+      if (targetSr || targetCh) {
+        setProgress('Zmiana parametrów…');
+        buf = await resample(buf, targetSr, targetCh);
+      }
+
+      let blob, ext = fmt;
+      if (fmt === 'wav') {
+        setProgress('Kodowanie WAV…');
+        await new Promise(r => setTimeout(r, 20));
+        blob = encodeWAV(buf);
+      } else if (fmt === 'mp3') {
+        setProgress('Ładowanie enkodera MP3…');
+        blob = await encodeMP3(buf, q);
+      } else {
+        throw new Error('Nieznany format: ' + fmt);
+      }
+
+      setProgress('Zapisywanie…');
+      const name = `${baseName}.${ext}`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      sizeInfo.textContent = `zapisano: ${name} (${formatSize(blob.size)})`;
+    } catch (e) {
+      console.error(e);
+      alert('Błąd zapisu:\n\n' + e.message);
+    } finally { setProgress(null); }
+  }
+  $('export').onclick = exportFile;
+
+  // ============================================================
+  // LOG OPERACJI
+  // ============================================================
+  function updateOpsLog() {
+    const ops = currentOps();
+    if (ops.length === 0) { opsLog.classList.remove('visible'); return; }
+    opsLog.classList.add('visible');
+    opsLog.innerHTML = ops.map((op, i) => {
+      let label = '';
+      switch (op.type) {
+        case 'gain':      label = `${op.value > 0 ? '+' : ''}${op.value}dB`; break;
+        case 'fade':      label = op.direction === 'in' ? `fade in ${op.duration}s` : `fade out ${op.duration}s`; break;
+        case 'reverse':   label = 'reverse'; break;
+        case 'trim':      label = `trim ${op.start.toFixed(2)}–${op.end.toFixed(2)}s`; break;
+        case 'remove':    label = `usuń ${op.start.toFixed(2)}–${op.end.toFixed(2)}s`; break;
+        case 'normalize': label = 'normalize'; break;
+        case 'speed':     label = `speed ${op.ratio}×`; break;
+        case 'eq':        label = `EQ ${op.bass > 0 ? '+' : ''}${op.bass}/${op.mid > 0 ? '+' : ''}${op.mid}/${op.treble > 0 ? '+' : ''}${op.treble}`; break;
+        case 'reverb':    label = 'reverb'; break;
+        case 'denoise':   label = `odszumianie (siła ${op.strength})`; break;
+        default:          label = op.type;
+      }
+      return `<span class="op-tag">${i+1}. ${label}</span>`;
+    }).join('');
+  }
+
+  // ============================================================
+  // RESIZE
+  // ============================================================
+  window.addEventListener('resize', () => {
+    if (renderedBuffer) { viewStart = 0; viewEnd = renderedBuffer.duration; }
+    drawWaveform();
+  });
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  enableUI(false);
+  updateNamePreview();
+  updateTrimInfo();
+  updatePlayheadUI();
+  drawWaveform();
+  updateNoiseInfo();
+  updateStepsState();
+  renderMergeQueue();
+})();
+</script>
+</body>
+</html>
