@@ -1,1233 +1,755 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8"><title>Edytor wideo</title>
+<meta charset="UTF-8"><title>Edytor wideo — ctxlibrary</title>
 <style>
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, sans-serif; background:#1a1a1e; color:#e8e8ea;
-         display:grid; grid-template-columns:340px 1fr; height:100vh; overflow:hidden; }
-  aside { background:#111114; padding:16px; border-right:1px solid #2a2a30; overflow-y:auto; }
-  main  { display:flex; flex-direction:column; overflow:hidden; }
-  h1 { font-size:14px; margin:0 0 14px; color:#a8a8b3; text-transform:uppercase; letter-spacing:1px; }
-  .group { margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid #2a2a30; }
-  .group:last-child { border-bottom:none; margin-bottom:0; }
-  .group h3 { font-size:11px; text-transform:uppercase; color:#7a7a86; margin:0 0 8px; letter-spacing:.5px; }
-  button { padding:7px 10px; background:#2a2a32; color:#e8e8ea; border:1px solid #3a3a44;
-           border-radius:6px; cursor:pointer; font-size:12px; transition:.12s; }
-  button:hover:not(:disabled) { background:#3a3a44; }
-  button:disabled { opacity:.35; cursor:not-allowed; }
-  button.primary { background:#3a5cff; border-color:#3a5cff; }
-  button.primary:hover:not(:disabled) { background:#4a6cff; }
-  button.locked { background:#3a5cff; border-color:#3a5cff; }
-  button.preset { padding:10px 6px; font-size:12px; font-weight:500; background:#1e1e24; border:1px solid #2a2a30; }
-  button.preset:hover:not(:disabled) { background:#25253a; border-color:#3a5cff; transform:translateY(-1px); }
-  .row { display:flex; gap:5px; margin-bottom:6px; }
-  .row button { flex:1; min-width:50px; }
-  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:6px; }
-  label.slider { display:grid; grid-template-columns:90px 1fr 42px; gap:6px; align-items:center; font-size:12px; margin:5px 0; }
-  label.row-flex { display:grid; grid-template-columns:90px 1fr; gap:6px; align-items:center; font-size:12px; margin:5px 0; }
-  input[type=range] { width:100%; accent-color:#3a5cff; }
-  input[type=checkbox] { accent-color:#3a5cff; }
-  .check { display:flex; align-items:center; gap:6px; font-size:13px; margin:5px 0; cursor:pointer; }
-  .num-input { display:grid; grid-template-columns:1fr auto 1fr; gap:6px; align-items:center; margin:6px 0; }
-  .num-input input, .text-input { width:100%; padding:6px; background:#1e1e24; color:#e8e8ea;
-    border:1px solid #3a3a44; border-radius:5px; font-size:12px; }
-  .file-btn { display:block; padding:14px; background:#1e1e24; color:#e8e8ea; border:2px dashed #3a3a44;
-    border-radius:8px; text-align:center; cursor:pointer; font-size:13px; font-weight:500;
-    margin-bottom:10px; transition:.15s; }
-  .file-btn:hover { border-color:#3a5cff; color:#3a5cff; background:#1a1a2a; }
-  .file-btn small { display:block; font-weight:400; font-size:11px; color:#7a7a86; margin-top:4px; }
-  input[type=file] { display:none; }
-  .hint { color:#5a5a66; font-size:11px; text-align:center; }
-  .hint.mono { font-family:ui-monospace, monospace; color:#7a7a86; }
-  #thumbnails { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-top:6px; }
-  #thumbnails .thumb { aspect-ratio:16/9; background:#000; border-radius:4px; border:2px solid transparent;
-    display:flex; align-items:center; justify-content:center; font-size:10px; color:#5a5a66;
-    cursor:pointer; overflow:hidden; position:relative; }
-  #thumbnails .thumb.selected { border-color:#3a5cff; }
-  #thumbnails .thumb img { width:100%; height:100%; object-fit:cover; }
-  #thumbnails .thumb .order { position:absolute; top:2px; left:2px; background:#3a5cff;
-    color:white; font-size:10px; padding:1px 5px; border-radius:3px; }
-
-  #toolbar { flex:0 0 auto; padding:6px 12px; background:#0e0e12; border-bottom:1px solid #2a2a30;
-    display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-  #toolbar .spacer { flex:1; }
-  #viewport { flex:1; overflow:hidden; position:relative; background:#0a0a0e;
-    display:flex; align-items:center; justify-content:center; padding:16px; }
-  #preview-video { max-width:100%; max-height:100%; background:#000; border-radius:6px; outline:none; }
-  #empty-state { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
-    justify-content:center; gap:14px; pointer-events:none; color:#4a4a56; text-align:center; padding:40px; }
-  #empty-state.hidden { display:none; }
-  #empty-state .big { font-size:80px; line-height:1; opacity:.4; }
-  #empty-state h2 { font-size:22px; color:#7a7a86; margin:0; font-weight:600; }
-  #empty-state p { margin:0; font-size:14px; max-width:380px; line-height:1.5; }
-  #empty-state kbd { background:#1e1e24; border:1px solid #3a3a44; padding:2px 6px;
-    border-radius:4px; font-family:ui-monospace,monospace; font-size:12px; color:#a8a8b3; }
-
-  #timeline-wrap { flex:0 0 auto; background:#0e0e12; border-top:1px solid #2a2a30; padding:6px 12px; display:none; }
-  #timeline-wrap.visible { display:block; }
-  #timeline { position:relative; height:60px; background:#0a0a0e; border-radius:6px; overflow:hidden;
-    cursor:pointer; user-select:none; }
-  #timeline .frames { display:flex; height:100%; }
-  #timeline .frame { flex:1; background-size:cover; background-position:center; opacity:.6;
-    border-right:1px solid #1a1a1e; }
-  #timeline .playhead { position:absolute; top:0; bottom:0; width:2px; background:#3a5cff;
-    pointer-events:none; transition:left .05s linear; }
-  #timeline .trim-range { position:absolute; top:0; bottom:0; background:rgba(58,92,255,0.18);
-    border-left:2px solid #3a5cff; border-right:2px solid #3a5cff; pointer-events:none; }
-  #timeline .trim-handle { position:absolute; top:0; bottom:0; width:8px; background:#3a5cff;
-    cursor:ew-resize; pointer-events:auto; }
-  #timeline .trim-handle.left { border-radius:4px 0 0 4px; }
-  #timeline .trim-handle.right { border-radius:0 4px 4px 0; }
-  #timeline-labels { display:flex; justify-content:space-between; font-size:10px; color:#5a5a66;
-    font-family:ui-monospace,monospace; margin-top:2px; }
-
-  #progress-wrap { flex:0 0 auto; padding:8px 12px; background:#0e0e12; border-top:1px solid #2a2a30; display:none; }
-  #progress-wrap.visible { display:block; }
-  #progress-bar { height:6px; background:#2a2a30; border-radius:3px; overflow:hidden; margin-bottom:4px; }
-  #progress-fill { height:100%; background:#3a5cff; width:0%; transition:width .2s; }
-  #progress-text { font-size:11px; color:#7a7a86; font-family:ui-monospace, monospace; }
-  #log { flex:0 0 auto; max-height:80px; overflow-y:auto; background:#0a0a0e;
-    border-top:1px solid #2a2a30; padding:4px 12px; font-family:ui-monospace, monospace;
-    font-size:10px; color:#5a5a66; display:none; }
-  #log.visible { display:block; }
-
-  #statusbar { flex:0 0 auto; padding:4px 12px; background:#0e0e12; border-top:1px solid #2a2a30;
-    display:flex; justify-content:space-between; font-size:11px; color:#7a7a86;
-    font-family:ui-monospace, monospace; }
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#1a1a1e;color:#e8e8ea;display:grid;grid-template-columns:340px 1fr;height:100vh;overflow:hidden}
+aside{background:#111114;padding:16px;border-right:1px solid #2a2a30;overflow-y:auto}
+main{display:flex;flex-direction:column;overflow:hidden}
+h1{font-size:14px;margin:0 0 14px;color:#a8a8b3;text-transform:uppercase;letter-spacing:1px}
+.group{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #2a2a30}
+.group:last-child{border-bottom:none;margin-bottom:0}
+.group h3{font-size:11px;text-transform:uppercase;color:#7a7a86;margin:0 0 8px;letter-spacing:.5px}
+button{padding:7px 10px;background:#2a2a32;color:#e8e8ea;border:1px solid #3a3a44;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;transition:.12s}
+button:hover:not(:disabled){background:#3a3a44}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.primary{background:#3a5cff;border-color:#3a5cff}
+button.primary:hover:not(:disabled){background:#4a6cff}
+button.danger{background:#7f1d1d;border-color:#991b1b}
+button.danger:hover:not(:disabled){background:#991b1b}
+button.preset{padding:10px 6px;font-size:12px;font-weight:500;background:#1e1e24;border:1px solid #2a2a30}
+button.preset:hover:not(:disabled){background:#25253a;border-color:#3a5cff;transform:translateY(-1px)}
+.row{display:flex;gap:5px;margin-bottom:6px}
+.row button{flex:1;min-width:50px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:6px}
+label.slider{display:grid;grid-template-columns:90px 1fr 46px;gap:6px;align-items:center;font-size:12px;margin:5px 0}
+label.row-flex{display:grid;grid-template-columns:90px 1fr;gap:6px;align-items:center;font-size:12px;margin:5px 0}
+input[type=range]{width:100%;accent-color:#3a5cff}
+input[type=checkbox]{accent-color:#3a5cff}
+.check{display:flex;align-items:center;gap:6px;font-size:13px;margin:5px 0;cursor:pointer}
+.text-input{width:100%;padding:6px;background:#1e1e24;color:#e8e8ea;border:1px solid #3a3a44;border-radius:5px;font-size:12px;font-family:inherit}
+.file-btn{display:block;padding:14px;background:#1e1e24;color:#e8e8ea;border:2px dashed #3a3a44;border-radius:8px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;margin-bottom:10px;transition:.15s}
+.file-btn:hover{border-color:#3a5cff;color:#3a5cff;background:#1a1a2a}
+.file-btn small{display:block;font-weight:400;font-size:11px;color:#7a7a86;margin-top:4px}
+input[type=file]{display:none}
+.hint{color:#5a5a66;font-size:11px;text-align:center}
+.hint.mono{font-family:ui-monospace,monospace;color:#7a7a86}
+#thumbnails{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px}
+#thumbnails .thumb{aspect-ratio:16/9;background:#000;border-radius:4px;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:10px;color:#5a5a66;cursor:pointer;overflow:hidden;position:relative}
+#thumbnails .thumb.selected{border-color:#3a5cff}
+#thumbnails .thumb img{width:100%;height:100%;object-fit:cover}
+#thumbnails .thumb .order{position:absolute;top:2px;left:2px;background:#3a5cff;color:white;font-size:10px;padding:1px 5px;border-radius:3px}
+#toolbar{flex:0 0 auto;padding:8px 14px;background:#0e0e12;border-bottom:1px solid #2a2a30;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#toolbar .spacer{flex:1}
+#toolbar #time-display{font-family:ui-monospace,monospace;font-size:12px;color:#a8a8b3;min-width:140px;text-align:center}
+#viewport{flex:1;overflow:hidden;position:relative;background:#0a0a0e;display:flex;align-items:center;justify-content:center;padding:16px}
+#preview-video{max-width:100%;max-height:100%;background:#000;border-radius:6px;outline:none}
+#empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none;color:#4a4a56;text-align:center;padding:40px}
+#empty-state.hidden{display:none}
+#empty-state .big{font-size:80px;line-height:1;opacity:.4}
+#empty-state h2{font-size:22px;color:#7a7a86;margin:0;font-weight:600}
+#empty-state p{margin:0;font-size:14px;max-width:380px;line-height:1.5}
+#empty-state kbd{background:#1e1e24;border:1px solid #3a3a44;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;color:#a8a8b3}
+#timeline-wrap{flex:0 0 auto;background:#0e0e12;border-top:1px solid #2a2a30;padding:6px 12px;display:none}
+#timeline-wrap.visible{display:block}
+#timeline{position:relative;height:60px;background:#0a0a0e;border-radius:6px;overflow:hidden;cursor:pointer;user-select:none}
+#timeline .frames{display:flex;height:100%}
+#timeline .frame{flex:1;background-size:cover;background-position:center;opacity:.6;border-right:1px solid #1a1a1e}
+#timeline .playhead{position:absolute;top:0;bottom:0;width:2px;background:#3a5cff;pointer-events:none;transition:left .05s linear}
+#timeline .trim-range{position:absolute;top:0;bottom:0;background:rgba(58,92,255,0.18);border-left:2px solid #3a5cff;border-right:2px solid #3a5cff;pointer-events:none}
+#timeline .trim-handle{position:absolute;top:0;bottom:0;width:8px;background:#3a5cff;cursor:ew-resize;pointer-events:auto}
+#timeline .trim-handle.left{border-radius:4px 0 0 4px}
+#timeline .trim-handle.right{border-radius:0 4px 4px 0}
+#timeline-labels{display:flex;justify-content:space-between;font-size:10px;color:#5a5a66;font-family:ui-monospace,monospace;margin-top:2px}
+#progress-wrap{flex:0 0 auto;padding:8px 12px;background:#0e0e12;border-top:1px solid #2a2a30;display:none}
+#progress-wrap.visible{display:block}
+#progress-bar{height:6px;background:#2a2a30;border-radius:3px;overflow:hidden;margin-bottom:4px}
+#progress-fill{height:100%;background:#3a5cff;width:0%;transition:width .2s}
+#progress-text{font-size:11px;color:#7a7a86;font-family:ui-monospace,monospace}
+#log{flex:0 0 auto;max-height:80px;overflow-y:auto;background:#0a0a0e;border-top:1px solid #2a2a30;padding:4px 12px;font-family:ui-monospace,monospace;font-size:10px;color:#5a5a66;display:none}
+#log.visible{display:block}
+#statusbar{flex:0 0 auto;padding:4px 12px;background:#0e0e12;border-top:1px solid #2a2a30;display:flex;justify-content:space-between;font-size:11px;color:#7a7a86;font-family:ui-monospace,monospace}
 </style>
 </head>
 <body>
 <aside>
-  <h1>Edytor wideo</h1>
-
-  <div class="group">
-    <label class="file-btn" for="file">
-      📁 Wczytaj wideo
-      <small>MP4, WebM, MKV, MOV, AVI, GIF…</small>
-    </label>
-    <input type="file" id="file" accept="video/*,image/*,audio/*">
-    <div class="row">
-      <button id="undo" disabled>↶ Cofnij</button>
-      <button id="redo" disabled>↷ Ponów</button>
-    </div>
-    <div class="row"><button id="reset" disabled>🔄 Od nowa</button></div>
-    <div id="thumbnails"></div>
-  </div>
-
-  <div class="group">
-    <h3>✨ Szybkie ulepszenia</h3>
-    <div class="grid-2">
-      <button class="preset" data-preset="social" disabled>📱 Social 9:16</button>
-      <button class="preset" data-preset="square" disabled>⬛ Kwadrat</button>
-      <button class="preset" data-preset="small" disabled>📦 Zmniejsz plik</button>
-      <button class="preset" data-preset="sharp" disabled>🔪 Wyostrz</button>
-      <button class="preset" data-preset="warm" disabled>🔥 Ciepłe</button>
-      <button class="preset" data-preset="cool" disabled>❄️ Zimne</button>
-      <button class="preset" data-preset="bw" disabled>⚫ Cz.-białe</button>
-      <button class="preset" data-preset="vivid" disabled>🎨 Wyraziste</button>
-    </div>
-  </div>
-
-  <div class="group">
-    <h3>Przycinanie</h3>
-    <div class="row">
-      <button id="set-start" disabled>⏱ Ustaw start</button>
-      <button id="set-end" disabled>⏱ Ustaw koniec</button>
-    </div>
-    <div class="hint mono" id="trim-info">start: 0.00s — koniec: całość</div>
-    <div class="row" style="margin-top:6px">
-      <button id="trim-preview" disabled>▶ Podgląd</button>
-      <button id="trim-apply" class="primary" disabled>✂ Wytnij</button>
-    </div>
-    <label class="check"><input type="checkbox" id="trim-fast" disabled checked> Szybko (bez re-encode)</label>
-  </div>
-
-  <div class="group">
-    <h3>Obrót / odbicie</h3>
-    <div class="grid-2">
-      <button id="rot-90" disabled>↻ 90° w prawo</button>
-      <button id="rot-270" disabled>↺ 90° w lewo</button>
-      <button id="rot-180" disabled>180°</button>
-      <button id="rot-flip" disabled>↔ Odbij</button>
-    </div>
-  </div>
-
-  <div class="group">
-    <h3>Rozmiar</h3>
-    <div class="num-input">
-      <input type="number" id="resize-w" placeholder="szer." min="1" disabled>
-      <span style="color:#7a7a86;font-size:11px">×</span>
-      <input type="number" id="resize-h" placeholder="wys." min="1" disabled>
-    </div>
-    <div class="row">
-      <button id="resize-apply" disabled>Zmień rozmiar</button>
-      <button id="resize-lock" class="locked" style="flex:0 0 40px">🔗</button>
-    </div>
-  </div>
-
-  <div class="group">
-    <h3>Kompresja</h3>
-    <div class="grid-2">
-      <button id="comp-light" disabled>Lekka</button>
-      <button id="comp-medium" class="primary" disabled>Średnia</button>
-      <button id="comp-strong" disabled>Mocna</button>
-      <button id="comp-custom" disabled>Własna…</button>
-    </div>
-    <label class="slider"><span>CRF</span><input type="range" id="crf" min="18" max="51" value="28" disabled><span id="crf-val">28</span></label>
-    <div class="hint">18 = prawie bezstratny · 51 = maks. kompresja</div>
-  </div>
-
-  <div class="group">
-    <h3>Prędkość</h3>
-    <label class="slider"><span>Tempo</span><input type="range" id="speed" min="0.25" max="4" step="0.25" value="1" disabled><span id="speed-val">1×</span></label>
-    <div class="row"><button id="speed-apply" disabled>Zmień tempo</button></div>
-  </div>
-
-  <div class="group">
-    <h3>Audio</h3>
-    <div class="grid-2">
-      <button id="audio-boost" disabled>🔊 Wzmocnij</button>
-      <button id="audio-normalize" disabled>📊 Normalizuj</button>
-      <button id="audio-mute" disabled>🔇 Wycisz</button>
-      <button id="audio-extract" disabled>🎵 Wyciągnij MP3</button>
-    </div>
-  </div>
-
-  <div class="group">
-    <h3>Napisy (SRT)</h3>
-    <label class="file-btn" for="srt-file" style="margin:0;padding:8px;font-size:11px;display:block">📄 Wgraj plik SRT</label>
-    <input type="file" id="srt-file" accept=".srt">
-    <div class="hint" id="srt-info">Brak napisów</div>
-    <div class="row" style="margin-top:6px">
-      <button id="subtitle-burn" disabled>Wypal napisy</button>
-    </div>
-  </div>
-
-  <div class="group">
-    <h3>Znak wodny</h3>
-    <div class="row">
-      <label class="file-btn" for="watermark-file" style="margin:0;padding:8px;font-size:11px;flex:1">🖼 Wgraj obraz</label>
-      <input type="file" id="watermark-file" accept="image/*">
-    </div>
-    <div class="row" style="margin-top:6px">
-      <button id="watermark-apply" disabled>Nałóż znak wodny</button>
-    </div>
-    <label class="slider"><span>Krycie</span><input type="range" id="wm-opacity" min="0.1" max="1" step="0.05" value="0.7" disabled><span id="wm-opacity-val">0.7</span></label>
-    <label class="row-flex">
-      <span>Pozycja</span>
-      <select id="wm-position" class="text-input" disabled>
-        <option value="10:10">Lewy górny</option>
-        <option value="W-w-10:10">Prawy górny</option>
-        <option value="10:H-h-10">Lewy dolny</option>
-        <option value="W-w-10:H-h-10">Prawy dolny</option>
-        <option value="(W-w)/2:(H-h)/2">Środek</option>
-      </select>
-    </label>
-  </div>
-
-  <div class="group">
-    <h3>Obraz w rogu (PiP)</h3>
-    <div class="row">
-      <label class="file-btn" for="pip-file" style="margin:0;padding:8px;font-size:11px;flex:1">🖼 Wgraj obraz</label>
-      <input type="file" id="pip-file" accept="image/*">
-    </div>
-    <label class="slider"><span>Szerokość</span><input type="range" id="pip-width" min="50" max="600" step="10" value="200" disabled><span id="pip-width-val">200</span></label>
-    <label class="slider"><span>Krycie</span><input type="range" id="pip-opacity" min="0.1" max="1" step="0.05" value="1" disabled><span id="pip-opacity-val">1</span></label>
-    <label class="row-flex">
-      <span>Pozycja</span>
-      <select id="pip-position" class="text-input" disabled>
-        <option value="W-w-10:10">Prawy górny</option>
-        <option value="10:10">Lewy górny</option>
-        <option value="10:H-h-10">Lewy dolny</option>
-        <option value="W-w-10:H-h-10">Prawy dolny</option>
-      </select>
-    </label>
-    <div class="row" style="margin-top:6px">
-      <button id="pip-apply" disabled>Nałóż PiP</button>
-    </div>
-  </div>
-
-  <div class="group">
-    <h3>Łączenie</h3>
-    <div class="row">
-      <label class="file-btn" for="extra-file" style="margin:0;padding:8px;font-size:11px;flex:1">➕ Dodaj wideo/obraz</label>
-      <input type="file" id="extra-file" accept="video/*,image/*" multiple>
-    </div>
-    <div class="row" style="margin-top:6px">
-      <button id="concat" disabled>🔗 Połącz wszystko</button>
-    </div>
-    <div class="hint">Dodane pliki pojawiają się jako miniatury u góry</div>
-  </div>
-
-  <div class="group">
-    <h3>Filtry obrazu</h3>
-    <label class="slider"><span>Jasność</span><input type="range" id="s-brightness" min="-1" max="1" step="0.02" value="0" disabled><span id="v-brightness">0</span></label>
-    <label class="slider"><span>Kontrast</span><input type="range" id="s-contrast" min="0" max="3" step="0.05" value="1" disabled><span id="v-contrast">1</span></label>
-    <label class="slider"><span>Nasycenie</span><input type="range" id="s-saturate" min="0" max="3" step="0.05" value="1" disabled><span id="v-saturate">1</span></label>
-    <label class="slider"><span>Odcień</span><input type="range" id="s-hue" min="-180" max="180" step="1" value="0" disabled><span id="v-hue">0</span></label>
-    <label class="slider"><span>Wyostrzenie</span><input type="range" id="s-sharpen" min="0" max="5" step="0.2" value="0" disabled><span id="v-sharpen">0</span></label>
-    <label class="check"><input type="checkbox" id="s-gray" disabled> Odcienie szarości</label>
-    <div class="row"><button id="filters-reset" disabled>Resetuj</button></div>
-    <div class="row"><button id="filters-apply" class="primary" disabled>Zastosuj filtry</button></div>
-  </div>
-
-  <div class="group">
-    <h3>Format i zapis</h3>
-    <label class="row-flex">
-      <span>Format</span>
-      <select id="out-format" class="text-input" disabled>
-        <option value="mp4">MP4 (uniwersalny)</option>
-        <option value="webm">WebM</option>
-        <option value="mkv">MKV</option>
-      </select>
-    </label>
-    <label class="row-flex">
-      <span>Nazwa</span>
-      <input type="text" id="export-name" class="text-input" value="moj-film" maxlength="80">
-    </label>
-    <div class="hint mono" id="name-preview">moj-film.mp4</div>
-    <div class="row" style="margin-top:8px">
-      <button class="primary" id="export" disabled style="flex:2">💾 Zapisz wynik</button>
-    </div>
-    <div class="hint" id="est-size">Szacowany rozmiar: —</div>
-  </div>
+<h1>Edytor wideo</h1>
+<div class="group">
+<label class="file-btn" for="file">📁 Wczytaj wideo<small>MP4, WebM, MKV, MOV, AVI, GIF…</small></label>
+<input type="file" id="file" accept="video/*,image/*,audio/*">
+<div class="row"><button id="undo" disabled>↶ Cofnij</button><button id="redo" disabled>↷ Ponów</button></div>
+<div class="row"><button id="reset" disabled>🔄 Od nowa</button></div>
+<div id="thumbnails"></div>
+</div>
+<div class="group">
+<h3>✨ Szybkie ulepszenia</h3>
+<div class="grid-2">
+<button class="preset" data-preset="social" disabled>📱 Social 9:16</button>
+<button class="preset" data-preset="square" disabled>⬛ Kwadrat</button>
+<button class="preset" data-preset="small" disabled>📦 Zmniejsz plik</button>
+<button class="preset" data-preset="sharp" disabled>🔪 Wyostrz</button>
+<button class="preset" data-preset="warm" disabled>☀️ Ciepłe</button>
+<button class="preset" data-preset="cool" disabled>❄️ Zimne</button>
+<button class="preset" data-preset="bw" disabled>⚫ Cz.-białe</button>
+<button class="preset" data-preset="vivid" disabled>🎨 Wyraziste</button>
+</div>
+</div>
+<div class="group">
+<h3>Przycinanie</h3>
+<div class="row"><button id="set-start" disabled>⏱ Ustaw początek</button><button id="set-end" disabled>⏱ Ustaw koniec</button></div>
+<div class="hint mono" id="trim-info">start: 0.00s — koniec: całość</div>
+<div class="row" style="margin-top:6px"><button id="trim-preview" disabled>▶ Odtwórz</button><button id="trim-apply" class="primary" disabled>✂ Wytnij</button></div>
+<label class="check"><input type="checkbox" id="trim-fast" disabled checked> Szybko (bez re-encode)</label>
+</div>
+<div class="group">
+<h3>Obrót / odbicie</h3>
+<div class="grid-2">
+<button id="rot-90" disabled>↻ 90° w prawo</button>
+<button id="rot-270" disabled>↺ 90° w lewo</button>
+<button id="rot-180" disabled>180°</button>
+<button id="rot-flip" disabled>↔ Odbij</button>
+</div>
+</div>
+<div class="group">
+<h3>Rozmiar</h3>
+<div class="num-input" style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;margin:6px 0">
+<input type="number" id="resize-w" placeholder="szer." min="1" disabled style="width:100%;padding:6px;background:#1e1e24;color:#e8e8ea;border:1px solid #3a3a44;border-radius:5px;font-size:12px">
+<span style="color:#7a7a86;font-size:11px">×</span>
+<input type="number" id="resize-h" placeholder="wys." min="1" disabled style="width:100%;padding:6px;background:#1e1e24;color:#e8e8ea;border:1px solid #3a3a44;border-radius:5px;font-size:12px">
+</div>
+<div class="row"><button id="resize-apply" disabled>Zmień rozmiar</button><button id="resize-lock" class="primary" style="flex:0 0 40px">🔗</button></div>
+</div>
+<div class="group">
+<h3>Kompresja</h3>
+<div class="grid-2">
+<button id="comp-light" disabled>Lekka</button>
+<button id="comp-medium" class="primary" disabled>Średnia</button>
+<button id="comp-strong" disabled>Mocna</button>
+<button id="comp-custom" disabled>Własna…</button>
+</div>
+<label class="slider"><span>CRF</span><input type="range" id="crf" min="18" max="51" value="28" disabled><span id="crf-val">28</span></label>
+<div class="hint">18 = prawie bezstratny · 51 = maks. kompresja</div>
+</div>
+<div class="group">
+<h3>Prędkość</h3>
+<label class="slider"><span>Tempo</span><input type="range" id="speed" min="0.25" max="4" step="0.25" value="1" disabled><span id="speed-val">1×</span></label>
+<div class="row"><button id="speed-apply" disabled>Zmień tempo</button></div>
+</div>
+<div class="group">
+<h3>Audio</h3>
+<div class="grid-2">
+<button id="audio-boost" disabled>🔊 Wzmocnij</button>
+<button id="audio-normalize" disabled>📊 Normalizuj</button>
+<button id="audio-mute" disabled>🔇 Wycisz</button>
+<button id="audio-extract" disabled>🎵 Wyciągnij MP3</button>
+</div>
+</div>
+<div class="group">
+<h3>Napisy (SRT)</h3>
+<label class="file-btn" for="srt-file" style="margin:0;padding:8px;font-size:11px;display:block">📄 Wgraj plik SRT</label>
+<input type="file" id="srt-file" accept=".srt">
+<div class="hint" id="srt-info">Brak napisów</div>
+<div class="row" style="margin-top:6px"><button id="subtitle-burn" disabled>Wypal napisy</button></div>
+</div>
+<div class="group">
+<h3>Znak wodny</h3>
+<div class="row"><label class="file-btn" for="watermark-file" style="margin:0;padding:8px;font-size:11px;flex:1">🖼 Wgraj obraz</label><input type="file" id="watermark-file" accept="image/*"></div>
+<div class="row" style="margin-top:6px"><button id="watermark-apply" disabled>Nałóż znak wodny</button></div>
+<label class="slider"><span>Krycie</span><input type="range" id="wm-opacity" min="0.1" max="1" step="0.05" value="0.7" disabled><span id="wm-opacity-val">0.7</span></label>
+<label class="row-flex"><span>Pozycja</span>
+<select id="wm-position" class="text-input" disabled>
+<option value="10:10">Lewy górny</option>
+<option value="W-w-10:10">Prawy górny</option>
+<option value="10:H-h-10">Lewy dolny</option>
+<option value="W-w-10:H-h-10">Prawy dolny</option>
+<option value="(W-w)/2:(H-h)/2">Środek</option>
+</select></label>
+</div>
+<div class="group">
+<h3>Obraz w rogu (PiP)</h3>
+<div class="row"><label class="file-btn" for="pip-file" style="margin:0;padding:8px;font-size:11px;flex:1">🖼 Wgraj obraz</label><input type="file" id="pip-file" accept="image/*"></div>
+<label class="slider"><span>Szerokość</span><input type="range" id="pip-width" min="50" max="600" step="10" value="200" disabled><span id="pip-width-val">200</span></label>
+<label class="slider"><span>Krycie</span><input type="range" id="pip-opacity" min="0.1" max="1" step="0.05" value="1" disabled><span id="pip-opacity-val">1</span></label>
+<label class="row-flex"><span>Pozycja</span>
+<select id="pip-position" class="text-input" disabled>
+<option value="W-w-10:10">Prawy górny</option>
+<option value="10:10">Lewy górny</option>
+<option value="10:H-h-10">Lewy dolny</option>
+<option value="W-w-10:H-h-10">Prawy dolny</option>
+</select></label>
+<div class="row" style="margin-top:6px"><button id="pip-apply" disabled>Nałóż PiP</button></div>
+</div>
+<div class="group">
+<h3>Łączenie</h3>
+<div class="row"><label class="file-btn" for="extra-file" style="margin:0;padding:8px;font-size:11px;flex:1">➕ Dodaj wideo/obraz</label><input type="file" id="extra-file" accept="video/*,image/*" multiple></div>
+<div class="row" style="margin-top:6px"><button id="concat" disabled>🔗 Połącz wszystko</button></div>
+<div class="hint">Dodane pliki pojawiają się jako miniatury u góry</div>
+</div>
+<div class="group">
+<h3>Filtry obrazu</h3>
+<label class="slider"><span>Jasność</span><input type="range" id="s-brightness" min="-1" max="1" step="0.02" value="0" disabled><span id="v-brightness">0</span></label>
+<label class="slider"><span>Kontrast</span><input type="range" id="s-contrast" min="0" max="3" step="0.05" value="1" disabled><span id="v-contrast">1</span></label>
+<label class="slider"><span>Nasycenie</span><input type="range" id="s-saturate" min="0" max="3" step="0.05" value="1" disabled><span id="v-saturate">1</span></label>
+<label class="slider"><span>Odcień</span><input type="range" id="s-hue" min="-180" max="180" step="1" value="0" disabled><span id="v-hue">0</span></label>
+<label class="slider"><span>Wyostrzenie</span><input type="range" id="s-sharpen" min="0" max="5" step="0.2" value="0" disabled><span id="v-sharpen">0</span></label>
+<label class="check"><input type="checkbox" id="s-gray" disabled> Odcienie szarości</label>
+<div class="row"><button id="filters-reset" disabled>Resetuj</button></div>
+<div class="row"><button id="filters-apply" class="primary" disabled>Zastosuj filtry</button></div>
+</div>
+<div class="group">
+<h3>Format i zapis</h3>
+<label class="row-flex"><span>Format</span>
+<select id="out-format" class="text-input" disabled>
+<option value="mp4">MP4 (uniwersalny)</option>
+<option value="webm">WebM</option>
+<option value="mkv">MKV</option>
+</select></label>
+<label class="row-flex"><span>Nazwa</span><input type="text" id="export-name" class="text-input" value="moj-film" maxlength="80"></label>
+<div class="hint mono" id="name-preview">moj-film.mp4</div>
+<div class="row" style="margin-top:8px"><button class="primary" id="export" disabled style="flex:2">💾 Zapisz wynik</button></div>
+<div class="hint" id="est-size">Szacowany rozmiar: —</div>
+</div>
 </aside>
 
 <main>
-  <div id="toolbar">
-    <button id="play-pause" disabled>▶</button>
-    <span id="time-display" style="font-family:ui-monospace,monospace;font-size:12px;color:#a8a8b3;min-width:130px;text-align:center">0:00 / 0:00</span>
-    <span class="spacer"></span>
-    <button id="mute-btn" title="Wycisz podgląd">🔊</button>
-    <span class="spacer"></span>
-    <span class="hint mono" id="file-info" style="color:#5a5a66">—</span>
-  </div>
-  <div id="viewport">
-    <div id="empty-state">
-      <div class="big">🎬</div>
-      <h2>Wczytaj wideo, żeby zacząć</h2>
-      <p>Przeciągnij plik tutaj, kliknij <b>„Wczytaj wideo"</b>, albo wklej ze schowka <kbd>Ctrl</kbd>+<kbd>V</kbd>.</p>
-      <p style="font-size:12px;color:#5a5a66">Wszystko działa lokalnie — Twoje pliki nigdy nie opuszczają komputera.</p>
-    </div>
-    <video id="preview-video" controls playsinline></video>
-  </div>
-  <div id="timeline-wrap">
-    <div id="timeline">
-      <div class="frames"></div>
-      <div class="trim-range" style="left:0;right:0"></div>
-      <div class="trim-handle left" style="left:0"></div>
-      <div class="trim-handle right" style="right:0"></div>
-      <div class="playhead" style="left:0"></div>
-    </div>
-    <div id="timeline-labels">
-      <span id="tl-start">0:00</span>
-      <span id="tl-mid">0:00</span>
-      <span id="tl-end">0:00</span>
-    </div>
-  </div>
-  <div id="progress-wrap">
-    <div id="progress-bar"><div id="progress-fill"></div></div>
-    <div id="progress-text">Gotowe</div>
-  </div>
-  <div id="log"></div>
-  <div id="statusbar">
-    <span id="cursor-info">—</span>
-    <span id="size-info">—</span>
-  </div>
+<div id="toolbar">
+<button id="play-pause" disabled>▶</button>
+<span id="time-display">0:00 / 0:00</span>
+<span class="spacer"></span>
+<button id="mute-btn" title="Wycisz podgląd">🔊</button>
+<span class="spacer"></span>
+<span class="hint mono" id="file-info" style="color:#5a5a66">—</span>
+</div>
+<div id="viewport">
+<div id="empty-state">
+<div class="big">🎬</div>
+<h2>Wczytaj wideo, żeby zacząć</h2>
+<p>Przeciągnij plik tutaj, kliknij <b>„Wczytaj wideo"</b>, albo wklej ze schowka <kbd>Ctrl</kbd>+<kbd>V</kbd>.</p>
+<p style="font-size:12px;color:#5a5a66">Wszystko działa lokalnie — Twoje pliki nigdy nie opuszczają komputera.</p>
+</div>
+<video id="preview-video" controls playsinline></video>
+</div>
+<div id="timeline-wrap">
+<div id="timeline">
+<div class="frames"></div>
+<div class="trim-range" style="left:0;right:0"></div>
+<div class="trim-handle left" style="left:0"></div>
+<div class="trim-handle right" style="right:0"></div>
+<div class="playhead" style="left:0"></div>
+</div>
+<div id="timeline-labels">
+<span id="tl-start">0:00</span>
+<span id="tl-mid">0:00</span>
+<span id="tl-end">0:00</span>
+</div>
+</div>
+<div id="progress-wrap">
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="progress-text">Gotowe</div>
+</div>
+<div id="log"></div>
+<div id="statusbar">
+<span id="cursor-info">—</span>
+<span id="size-info">—</span>
+</div>
 </main>
 
-<!-- Klasy FFmpeg i util — z jsDelivr, z fallbackiem do unpkg (przez onerror) -->
+<script src="./ffmpeg/ffmpeg.js"></script>
+<script src="./ffmpeg/util.js"></script>
 <script>
-  // Dynamiczne ładowanie z fallbackiem
-  window.__ffmpegLibsReady = (async () => {
-    const load = (src) => new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = res;
-      s.onerror = () => rej(new Error('Nie załadowano: ' + src));
-      document.head.appendChild(s);
-    });
-    const cdns = [
-      'https://cdn.jsdelivr.net/npm',
-      'https://unpkg.com'
-    ];
-    for (const cdn of cdns) {
-      try {
-        await load(`${cdn}/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js`);
-        await load(`${cdn}/@ffmpeg/util@0.12.1/dist/umd/index.js`);
-        if (window.FFmpegWASM && window.FFmpegUtil) {
-          console.log('FFmpeg libs loaded from ' + cdn);
-          return cdn;
-        }
-      } catch (e) { console.warn('CDN failed: ' + cdn, e); }
-    }
-    throw new Error('Nie udało się załadować bibliotek FFmpeg z żadnego CDN-u.');
-  })();
-</script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var video=$('preview-video'),emptyState=$('empty-state'),thumbnails=$('thumbnails');
+var progressWrap=$('progress-wrap'),progressFill=$('progress-fill'),progressText=$('progress-text');
+var logEl=$('log'),fileInfo=$('file-info'),sizeInfo=$('size-info'),timeDisplay=$('time-display');
+var timelineWrap=$('timeline-wrap'),timelineEl=$('timeline');
+var timelineFrames=timelineEl.querySelector('.frames'),playhead=timelineEl.querySelector('.playhead');
+var trimRange=timelineEl.querySelector('.trim-range');
+var trimHandleL=timelineEl.querySelector('.trim-handle.left'),trimHandleR=timelineEl.querySelector('.trim-handle.right');
 
-<script>
-(() => {
-  const $ = id => document.getElementById(id);
-  const video = $('preview-video');
-  const emptyState = $('empty-state');
-  const thumbnails = $('thumbnails');
-  const progressWrap = $('progress-wrap');
-  const progressFill = $('progress-fill');
-  const progressText = $('progress-text');
-  const logEl = $('log');
-  const fileInfo = $('file-info');
-  const sizeInfo = $('size-info');
-  const timeDisplay = $('time-display');
-  const timelineWrap = $('timeline-wrap');
-  const timelineEl = $('timeline');
-  const timelineFrames = timelineEl.querySelector('.frames');
-  const playhead = timelineEl.querySelector('.playhead');
-  const trimRange = timelineEl.querySelector('.trim-range');
-  const trimHandleL = timelineEl.querySelector('.trim-handle.left');
-  const trimHandleR = timelineEl.querySelector('.trim-handle.right');
+var ffmpeg=null,ffmpegReady=false;
+var sourceFile=null,sourceUrl=null;
+var sourceMeta={name:'',size:0,duration:0,width:0,height:0,type:''};
+var extraFiles=[],history=[],historyCursor=0,lastResultBlob=null;
+var trimStart=0,trimEnd=null;
+var currentFilters={brightness:0,contrast:1,saturate:1,hue:0,sharpen:0,gray:false};
+var lockAspect=true,srtContent=null,watermarkFile=null,pipFile=null,playingTrim=false;
 
-  let ffmpeg = null;
-  let ffmpegReady = false;
-  let sourceFile = null;
-  let sourceUrl = null;
-  let sourceMeta = { name:'', size:0, duration:0, width:0, height:0, type:'' };
-  let extraFiles = [];
-  let history = [];
-  let historyCursor = 0;
-  let lastResultBlob = null;
-  let trimStart = 0, trimEnd = null;
-  let currentFilters = { brightness:0, contrast:1, saturate:1, hue:0, sharpen:0, gray:false };
-  let lockAspect = true;
-  let srtContent = null;
-  let watermarkFile = null;
-  let pipFile = null;
-  let playingTrim = false;
-  let usedCdn = null;
-
-  // ============================================================
-  // ŁADOWANIE FFMPEG — 4 metody próbowane po kolei
-  // ============================================================
-  async function initFFmpeg() {
-    if (ffmpegReady) return true;
-
-    // Poczekaj, aż biblioteki FFmpeg/Util będą załadowane (dynamicznie)
-    try {
-      usedCdn = await window.__ffmpegLibsReady;
-    } catch (e) {
-      addLog('✗ ' + e.message);
-      alert('Nie udało się załadować bibliotek FFmpeg z CDN.\n\nSprawdź internet / antywirusa.\n\nBłąd: ' + e.message);
-      return false;
-    }
-
-    const { FFmpeg } = window.FFmpegWASM;
-    const { toBlobURL } = window.FFmpegUtil;
-
-    // Konfiguracje do próbowania po kolei
-    const attempts = [
-      {
-        label: 'jsDelivr (blob URL)',
-        async get() {
-          const base = 'https://cdn.jsdelivr.net/npm';
-          return {
-            coreURL: await toBlobURL(`${base}/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${base}/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm`, 'application/wasm'),
-            classWorkerURL: await toBlobURL(`${base}/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js`, 'text/javascript'),
-          };
-        }
-      },
-      {
-        label: 'jsDelivr (direct URL)',
-        async get() {
-          const base = 'https://cdn.jsdelivr.net/npm';
-          return {
-            coreURL: `${base}/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js`,
-            wasmURL: `${base}/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm`,
-            classWorkerURL: await toBlobURL(`${base}/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js`, 'text/javascript'),
-          };
-        }
-      },
-      {
-        label: 'unpkg (direct URL)',
-        async get() {
-          const base = 'https://unpkg.com';
-          return {
-            coreURL: `${base}/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js`,
-            wasmURL: `${base}/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm`,
-            classWorkerURL: await toBlobURL(`${base}/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js`, 'text/javascript'),
-          };
-        }
-      },
-      {
-        label: 'lokalny folder ./ffmpeg/',
-        async get() {
-          return {
-            coreURL: './ffmpeg/ffmpeg-core.js',
-            wasmURL: './ffmpeg/ffmpeg-core.wasm',
-            classWorkerURL: './ffmpeg/814.ffmpeg.js',
-          };
-        }
-      }
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        setProgress(0.1, `Próba: ${attempt.label}…`);
-        addLog(`→ Próba: ${attempt.label}`);
-
-        const ff = new FFmpeg();
-        ff.on('log', ({ message }) => addLog('[ffmpeg] ' + message));
-        ff.on('progress', ({ progress }) => {
-          const p = Math.max(0, Math.min(1, progress || 0));
-          setProgress(0.3 + p * 0.7, `Przetwarzanie… ${Math.round(p*100)}%`);
-        });
-
-        const cfg = await attempt.get();
-        setProgress(0.2, `Ładowanie ${attempt.label}…`);
-        await ff.load(cfg);
-
-        ffmpeg = ff;
-        ffmpegReady = true;
-        addLog(`✓ Załadowano: ${attempt.label}`);
-        setProgress(0, 'Gotowe');
-        return true;
-      } catch (err) {
-        addLog(`✗ ${attempt.label}: ${err.message || err}`);
-        console.warn('Attempt failed:', attempt.label, err);
-      }
-    }
-
-    setProgress(0, 'Błąd ładowania ffmpeg');
-    alert(
-      'Nie udało się załadować ffmpeg.wasm żadną metodą.\n\n' +
-      'Ostatnia deska ratunku: pobierz pliki ręcznie.\n\n' +
-      '1. Otwórz folder, w którym masz index.html\n' +
-      '2. Utwórz w nim podfolder „ffmpeg"\n' +
-      '3. Wejdź na https://www.jsdelivr.com/package/npm/@ffmpeg/core?path=dist/umd\n' +
-      '4. Pobierz ffmpeg-core.js i ffmpeg-core.wasm do tego folderu\n' +
-      '5. Wejdź na https://www.jsdelivr.com/package/npm/@ffmpeg/ffmpeg?path=dist/umd\n' +
-      '6. Pobierz 814.ffmpeg.js do tego folderu\n' +
-      '7. Odśwież stronę\n\n' +
-      'Szczegóły w logu na dole strony.'
-    );
+// ===== INIT FFMPEG — TYLKO LOKALNE PLIKI ./ffmpeg/ =====
+async function initFFmpeg(){
+  if(ffmpegReady)return true;
+  try{
+    var FFmpeg=window.FFmpegWASM.FFmpeg;
+    var toBlobURL=window.FFmpegUtil.toBlobURL;
+    ffmpeg=new FFmpeg();
+    ffmpeg.on('log',function(d){addLog(d.message)});
+    ffmpeg.on('progress',function(d){var p=Math.max(0,Math.min(1,d.progress||0));setProgress(p,'Przetwarzanie… '+Math.round(p*100)+'%')});
+    setProgress(0.05,'Ładowanie silnika ffmpeg…');
+    var coreURL=await toBlobURL('./ffmpeg/ffmpeg-core.js','text/javascript');
+    var wasmURL=await toBlobURL('./ffmpeg/ffmpeg-core.wasm','application/wasm');
+    var classWorkerURL=await toBlobURL('./ffmpeg/814.ffmpeg.js','text/javascript');
+    setProgress(0.3,'Uruchamianie ffmpeg.wasm…');
+    await ffmpeg.load({coreURL:coreURL,wasmURL:wasmURL,classWorkerURL:classWorkerURL});
+    ffmpegReady=true;
+    addLog('✓ ffmpeg.wasm gotowy (self-hosted).');
+    setProgress(0,'Gotowe');
+    return true;
+  }catch(err){
+    console.error(err);
+    setProgress(0,'Błąd ładowania ffmpeg');
+    addLog('✗ BŁĄD: '+err.message);
+    alert('Nie udało się załadować ffmpeg.wasm z folderu ./ffmpeg/.\n\nSprawdź czy w podfolderze „ffmpeg" obok index.html są 5 plików:\n- ffmpeg.js\n- util.js\n- 814.ffmpeg.js\n- ffmpeg-core.js\n- ffmpeg-core.wasm (~15 MB)\n\nBłąd: '+err.message);
     return false;
   }
+}
 
-  function addLog(msg) {
-    logEl.classList.add('visible');
-    const line = document.createElement('div');
-    line.textContent = msg;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
-    while (logEl.childNodes.length > 300) logEl.removeChild(logEl.firstChild);
-  }
-  function setProgress(p, text) {
-    if (p <= 0 && (!text || text === 'Gotowe')) { progressWrap.classList.remove('visible'); return; }
-    progressWrap.classList.add('visible');
-    progressFill.style.width = (p * 100).toFixed(1) + '%';
-    progressText.textContent = text || '';
-  }
+function addLog(msg){logEl.classList.add('visible');var line=document.createElement('div');line.textContent=msg;logEl.appendChild(line);logEl.scrollTop=logEl.scrollHeight;while(logEl.childNodes.length>300)logEl.removeChild(logEl.firstChild)}
+function setProgress(p,text){if(p<=0&&(!text||text==='Gotowe')){progressWrap.classList.remove('visible');return}progressWrap.classList.add('visible');progressFill.style.width=(p*100).toFixed(1)+'%';progressText.textContent=text||''}
 
-  // ============================================================
-  // WCZYTYWANIE
-  // ============================================================
-  async function loadFile(file) {
-    if (!file) return;
-    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-    sourceFile = file;
-    sourceUrl = URL.createObjectURL(file);
-    video.src = sourceUrl;
-    emptyState.classList.add('hidden');
-    timelineWrap.classList.add('visible');
+async function loadFile(file){
+  if(!file)return;
+  if(sourceUrl)URL.revokeObjectURL(sourceUrl);
+  sourceFile=file;sourceUrl=URL.createObjectURL(file);
+  video.src=sourceUrl;emptyState.classList.add('hidden');timelineWrap.classList.add('visible');
+  await new Promise(function(res){
+    video.onloadedmetadata=function(){
+      sourceMeta={name:file.name,size:file.size,duration:video.duration||0,width:video.videoWidth,height:video.videoHeight,type:file.type};
+      trimStart=0;trimEnd=sourceMeta.duration;
+      updateTrimInfo();updateFileInfo();buildTimeline();res();
+    };
+    video.onerror=function(){alert('Nie mogę odtworzyć tego pliku w podglądzie — ffmpeg.wasm i tak może go przetworzyć.');res()};
+  });
+  var base=file.name.replace(/\.[^.]+$/,'').replace(/[^\w\-]+/g,'-').slice(0,60)||'moj-film';
+  $('export-name').value=base;updateNamePreview();
+  history=[];historyCursor=0;extraFiles=[];lastResultBlob=null;
+  srtContent=null;watermarkFile=null;pipFile=null;
+  renderThumbnails();resetFiltersUI();
+  enableUI(true);updateUndoRedo();
+  initFFmpeg();
+}
 
-    await new Promise(res => {
-      video.onloadedmetadata = () => {
-        sourceMeta = { name: file.name, size: file.size, duration: video.duration || 0,
-                       width: video.videoWidth, height: video.videoHeight, type: file.type };
-        trimStart = 0; trimEnd = sourceMeta.duration;
-        updateTrimInfo(); updateFileInfo(); buildTimeline();
-        res();
+function enableUI(on){
+  var ids=['undo','redo','reset','set-start','set-end','trim-preview','trim-apply','trim-fast','rot-90','rot-270','rot-180','rot-flip','resize-w','resize-h','resize-apply','out-format','comp-light','comp-medium','comp-strong','comp-custom','crf','speed','speed-apply','audio-boost','audio-normalize','audio-mute','audio-extract','subtitle-burn','watermark-apply','wm-opacity','wm-position','pip-width','pip-opacity','pip-position','pip-apply','concat','play-pause','mute-btn','s-brightness','s-contrast','s-saturate','s-hue','s-sharpen','s-gray','filters-reset','filters-apply','export'];
+  ids.forEach(function(id){var el=$(id);if(el)el.disabled=!on});
+  document.querySelectorAll('[data-preset]').forEach(function(b){b.disabled=!on});
+}
+
+function updateFileInfo(){
+  var sec=Math.round(sourceMeta.duration),mm=Math.floor(sec/60),ss=sec%60;
+  fileInfo.textContent=sourceMeta.width+'×'+sourceMeta.height+' · '+mm+':'+String(ss).padStart(2,'0')+' · '+formatSize(sourceMeta.size);
+  sizeInfo.textContent='oryginał: '+formatSize(sourceMeta.size);
+  updateEstSize();
+}
+function formatSize(b){if(b<1024)return b+' B';if(b<1024*1024)return (b/1024).toFixed(1)+' KB';return (b/1024/1024).toFixed(1)+' MB'}
+function updateTrimInfo(){var s=trimStart.toFixed(2);var e=trimEnd==null?'całość':trimEnd.toFixed(2);$('trim-info').textContent='start: '+s+'s — koniec: '+e+'s';updateTimelineUI()}
+function updateTimeDisplay(){var d=video.duration||0;var fmt=function(t){var m=Math.floor(t/60),s=Math.floor(t%60);return m+':'+String(s).padStart(2,'0')};timeDisplay.textContent=fmt(video.currentTime)+' / '+fmt(d)}
+function fmtTime(t){var m=Math.floor(t/60),s=Math.floor(t%60);return m+':'+String(s).padStart(2,'0')}
+
+async function buildTimeline(){
+  timelineFrames.innerHTML='';
+  var count=20,dur=sourceMeta.duration;
+  if(!dur||!sourceMeta.width)return;
+  var v=document.createElement('video');
+  v.muted=true;v.playsInline=true;v.preload='auto';v.src=sourceUrl;
+  for(var i=0;i<count;i++){
+    await new Promise(function(res){
+      v.currentTime=(i/count)*dur;
+      v.onseeked=function(){
+        var c=document.createElement('canvas');
+        c.width=120;c.height=Math.round(120*(v.videoHeight/v.videoWidth)||68);
+        c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+        var div=document.createElement('div');
+        div.className='frame';div.style.backgroundImage='url('+c.toDataURL('image/jpeg',0.6)+')';
+        timelineFrames.appendChild(div);res();
       };
-      video.onerror = () => {
-        alert('Nie mogę odtworzyć tego pliku w podglądzie — ffmpeg.wasm i tak może go przetworzyć.');
-        res();
-      };
-    });
-
-    const base = file.name.replace(/\.[^.]+$/, '').replace(/[^\w\-]+/g, '-').slice(0, 60) || 'moj-film';
-    $('export-name').value = base;
-    updateNamePreview();
-    history = []; historyCursor = 0;
-    extraFiles = []; lastResultBlob = null;
-    srtContent = null; watermarkFile = null; pipFile = null;
-    renderThumbnails(); resetFiltersUI();
-    enableUI(true); updateUndoRedo();
-    initFFmpeg();
-  }
-
-  function enableUI(on) {
-    const ids = ['undo','redo','reset','set-start','set-end','trim-preview','trim-apply',
-      'trim-fast','rot-90','rot-270','rot-180','rot-flip',
-      'resize-w','resize-h','resize-apply','out-format',
-      'comp-light','comp-medium','comp-strong','comp-custom','crf',
-      'speed','speed-apply',
-      'audio-boost','audio-normalize','audio-mute','audio-extract',
-      'subtitle-burn',
-      'watermark-apply','wm-opacity','wm-position',
-      'pip-width','pip-opacity','pip-position','pip-apply',
-      'concat','play-pause','mute-btn',
-      's-brightness','s-contrast','s-saturate','s-hue','s-sharpen','s-gray',
-      'filters-reset','filters-apply','export'];
-    ids.forEach(id => { const el = $(id); if (el) el.disabled = !on; });
-    document.querySelectorAll('[data-preset]').forEach(b => b.disabled = !on);
-  }
-
-  function updateFileInfo() {
-    const sec = Math.round(sourceMeta.duration);
-    const mm = Math.floor(sec / 60), ss = sec % 60;
-    fileInfo.textContent = `${sourceMeta.width}×${sourceMeta.height} · ${mm}:${ss.toString().padStart(2,'0')} · ${formatSize(sourceMeta.size)}`;
-    sizeInfo.textContent = `oryginał: ${formatSize(sourceMeta.size)}`;
-    updateEstSize();
-  }
-  function formatSize(b) {
-    if (b < 1024) return b + ' B';
-    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
-    return (b/1024/1024).toFixed(1) + ' MB';
-  }
-  function updateTrimInfo() {
-    const s = trimStart.toFixed(2);
-    const e = trimEnd == null ? 'całość' : trimEnd.toFixed(2);
-    $('trim-info').textContent = `start: ${s}s — koniec: ${e}s`;
-    updateTimelineUI();
-  }
-  function updateTimeDisplay() {
-    const d = video.duration || 0;
-    const fmt = t => { const m = Math.floor(t / 60), s = Math.floor(t % 60);
-                       return `${m}:${s.toString().padStart(2,'0')}`; };
-    timeDisplay.textContent = `${fmt(video.currentTime)} / ${fmt(d)}`;
-  }
-  function fmtTime(t) {
-    const m = Math.floor(t / 60), s = Math.floor(t % 60);
-    return `${m}:${s.toString().padStart(2,'0')}`;
-  }
-
-  // ============================================================
-  // TIMELINE
-  // ============================================================
-  async function buildTimeline() {
-    timelineFrames.innerHTML = '';
-    const count = 20, dur = sourceMeta.duration;
-    if (!dur || !sourceMeta.width) return;
-    const v = document.createElement('video');
-    v.muted = true; v.playsInline = true; v.preload = 'auto';
-    v.src = sourceUrl;
-    for (let i = 0; i < count; i++) {
-      const t = (i / count) * dur;
-      await new Promise(res => {
-        v.currentTime = t;
-        v.onseeked = () => {
-          const c = document.createElement('canvas');
-          c.width = 120; c.height = Math.round(120 * (v.videoHeight / v.videoWidth) || 68);
-          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-          const d = c.toDataURL('image/jpeg', 0.6);
-          const div = document.createElement('div');
-          div.className = 'frame'; div.style.backgroundImage = `url(${d})`;
-          timelineFrames.appendChild(div);
-          res();
-        };
-        v.onerror = res;
-      });
-    }
-    $('tl-start').textContent = '0:00';
-    $('tl-end').textContent = fmtTime(dur);
-    $('tl-mid').textContent = fmtTime(dur / 2);
-  }
-  function updateTimelineUI() {
-    if (!sourceMeta.duration) return;
-    const dur = sourceMeta.duration;
-    const leftPct = (trimStart / dur) * 100;
-    const rightPct = ((trimEnd || dur) / dur) * 100;
-    trimHandleL.style.left = leftPct + '%';
-    trimHandleR.style.left = rightPct + '%';
-    trimRange.style.left = leftPct + '%';
-    trimRange.style.width = (rightPct - leftPct) + '%';
-  }
-  function updatePlayhead() {
-    if (!sourceMeta.duration) return;
-    playhead.style.left = (video.currentTime / sourceMeta.duration * 100) + '%';
-  }
-  let dragHandle = null;
-  trimHandleL.addEventListener('mousedown', e => { dragHandle = 'left'; e.preventDefault(); });
-  trimHandleR.addEventListener('mousedown', e => { dragHandle = 'right'; e.preventDefault(); });
-  window.addEventListener('mousemove', e => {
-    if (!dragHandle || !sourceMeta.duration) return;
-    const r = timelineEl.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    const t = pct * sourceMeta.duration;
-    if (dragHandle === 'left') trimStart = Math.min(t, (trimEnd || sourceMeta.duration) - 0.1);
-    else trimEnd = Math.max(t, trimStart + 0.1);
-    updateTrimInfo();
-  });
-  window.addEventListener('mouseup', () => { dragHandle = null; });
-  timelineEl.addEventListener('click', e => {
-    if (!sourceMeta.duration || dragHandle) return;
-    const r = timelineEl.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    video.currentTime = pct * sourceMeta.duration;
-  });
-  video.addEventListener('timeupdate', () => { updateTimeDisplay(); updatePlayhead(); });
-  video.addEventListener('loadedmetadata', updateTimeDisplay);
-
-  // ============================================================
-  // WCZYTYWANIE PLIKÓW (input, drag, paste)
-  // ============================================================
-  $('file').onchange = e => { const f = e.target.files[0]; if (f) loadFile(f); };
-  document.body.addEventListener('dragover', e => e.preventDefault());
-  document.body.addEventListener('drop', e => {
-    e.preventDefault();
-    const f = e.dataTransfer.files[0]; if (f) loadFile(f);
-  });
-  document.addEventListener('paste', e => {
-    const items = e.clipboardData?.items; if (!items) return;
-    for (const it of items) {
-      if (it.type.startsWith('video/') || it.type.startsWith('image/')) {
-        loadFile(it.getAsFile()); break;
-      }
-    }
-  });
-
-  // ============================================================
-  // MINIATURY
-  // ============================================================
-  function renderThumbnails() {
-    thumbnails.innerHTML = '';
-    extraFiles.forEach((item, i) => {
-      const div = document.createElement('div');
-      div.className = 'thumb' + (item.selected ? ' selected' : '');
-      div.innerHTML = `<span class="order">${i+1}</span>` +
-        (item.thumb ? `<img src="${item.thumb}">` : `<span>${item.file.name.split('.').pop().toUpperCase()}</span>`);
-      div.onclick = () => { item.selected = !item.selected; renderThumbnails(); };
-      div.oncontextmenu = e => { e.preventDefault(); extraFiles.splice(i,1); renderThumbnails(); };
-      div.title = item.file.name + ' — klik: zaznacz, prawy klik: usuń';
-      thumbnails.appendChild(div);
+      v.onerror=res;
     });
   }
-  async function addExtraFiles(files) {
-    for (const f of files) {
-      const item = { file: f, thumb: null, selected: true };
-      try {
-        if (f.type.startsWith('image/')) item.thumb = URL.createObjectURL(f);
-        else if (f.type.startsWith('video/')) item.thumb = await extractThumb(f);
-      } catch (_) {}
-      extraFiles.push(item);
-    }
-    renderThumbnails();
-    addLog(`Dodano ${files.length} plik(ów) do kolejki.`);
+  $('tl-start').textContent='0:00';
+  $('tl-end').textContent=fmtTime(dur);
+  $('tl-mid').textContent=fmtTime(dur/2);
+}
+
+function updateTimelineUI(){
+  if(!sourceMeta.duration)return;
+  var dur=sourceMeta.duration,leftPct=(trimStart/dur)*100,rightPct=((trimEnd||dur)/dur)*100;
+  trimHandleL.style.left=leftPct+'%';trimHandleR.style.left=rightPct+'%';
+  trimRange.style.left=leftPct+'%';trimRange.style.width=(rightPct-leftPct)+'%';
+}
+function updatePlayhead(){if(!sourceMeta.duration)return;playhead.style.left=(video.currentTime/sourceMeta.duration*100)+'%'}
+
+var dragHandle=null;
+trimHandleL.addEventListener('mousedown',function(e){dragHandle='left';e.preventDefault()});
+trimHandleR.addEventListener('mousedown',function(e){dragHandle='right';e.preventDefault()});
+window.addEventListener('mousemove',function(e){
+  if(!dragHandle||!sourceMeta.duration)return;
+  var r=timelineEl.getBoundingClientRect();
+  var pct=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  var t=pct*sourceMeta.duration;
+  if(dragHandle==='left')trimStart=Math.min(t,(trimEnd||sourceMeta.duration)-0.1);
+  else trimEnd=Math.max(t,trimStart+0.1);
+  updateTrimInfo();
+});
+window.addEventListener('mouseup',function(){dragHandle=null});
+timelineEl.addEventListener('click',function(e){
+  if(!sourceMeta.duration||dragHandle)return;
+  var r=timelineEl.getBoundingClientRect();
+  var pct=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  video.currentTime=pct*sourceMeta.duration;
+});
+video.addEventListener('timeupdate',function(){updateTimeDisplay();updatePlayhead()});
+video.addEventListener('loadedmetadata',updateTimeDisplay);
+
+$('file').onchange=function(e){var f=e.target.files[0];if(f)loadFile(f)};
+document.body.addEventListener('dragover',function(e){e.preventDefault()});
+document.body.addEventListener('drop',function(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)loadFile(f)});
+document.addEventListener('paste',function(e){var items=e.clipboardData&&e.clipboardData.items;if(!items)return;for(var i=0;i<items.length;i++){if(items[i].type.indexOf('video/')===0||items[i].type.indexOf('image/')===0){loadFile(items[i].getAsFile());break}}});
+
+function renderThumbnails(){
+  thumbnails.innerHTML='';
+  extraFiles.forEach(function(item,i){
+    var div=document.createElement('div');
+    div.className='thumb'+(item.selected?' selected':'');
+    div.innerHTML='<span class="order">'+(i+1)+'</span>'+(item.thumb?'<img src="'+item.thumb+'">':'<span>'+item.file.name.split('.').pop().toUpperCase()+'</span>');
+    div.onclick=function(){item.selected=!item.selected;renderThumbnails()};
+    div.oncontextmenu=function(e){e.preventDefault();extraFiles.splice(i,1);renderThumbnails()};
+    thumbnails.appendChild(div);
+  });
+}
+async function addExtraFiles(files){
+  for(var i=0;i<files.length;i++){
+    var f=files[i],item={file:f,thumb:null,selected:true};
+    try{
+      if(f.type.indexOf('image/')===0)item.thumb=URL.createObjectURL(f);
+      else if(f.type.indexOf('video/')===0)item.thumb=await extractThumb(f);
+    }catch(_){}
+    extraFiles.push(item);
   }
-  function extractThumb(file) {
-    return new Promise(res => {
-      const v = document.createElement('video');
-      v.preload = 'metadata'; v.muted = true; v.playsInline = true;
-      v.src = URL.createObjectURL(file);
-      v.onloadedmetadata = () => { v.currentTime = Math.min(0.5, v.duration || 0); };
-      v.onseeked = () => {
-        const c = document.createElement('canvas');
-        c.width = 160; c.height = Math.round(160 * (v.videoHeight / v.videoWidth) || 90);
-        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(v.src);
-        res(c.toDataURL('image/jpeg', 0.7));
-      };
-      v.onerror = () => { URL.revokeObjectURL(v.src); res(null); };
+  renderThumbnails();
+  addLog('Dodano '+files.length+' plik(ów) do kolejki.');
+}
+function extractThumb(file){
+  return new Promise(function(res){
+    var v=document.createElement('video');
+    v.preload='metadata';v.muted=true;v.playsInline=true;v.src=URL.createObjectURL(file);
+    v.onloadedmetadata=function(){v.currentTime=Math.min(0.5,v.duration||0)};
+    v.onseeked=function(){
+      var c=document.createElement('canvas');
+      c.width=160;c.height=Math.round(160*(v.videoHeight/v.videoWidth)||90);
+      c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+      URL.revokeObjectURL(v.src);res(c.toDataURL('image/jpeg',0.7));
+    };
+    v.onerror=function(){URL.revokeObjectURL(v.src);res(null)};
+  });
+}
+$('extra-file').onchange=function(e){addExtraFiles([].slice.call(e.target.files))};
+
+function sanitizeName(n){return (n||'moj-film').trim().replace(/\.(mp4|webm|mkv|gif|mov|avi)$/i,'').replace(/[<>:"\/\\|?*\x00-\x1f]/g,'').replace(/\s+/g,'-').slice(0,80)||'moj-film'}
+function updateNamePreview(){$('name-preview').textContent=sanitizeName($('export-name').value)+'.'+$('out-format').value}
+$('export-name').addEventListener('input',updateNamePreview);
+$('out-format').addEventListener('change',updateNamePreview);
+
+function pushHistory(label){history=history.slice(0,historyCursor);history.push(label);historyCursor=history.length;updateUndoRedo()}
+function updateUndoRedo(){$('undo').disabled=historyCursor===0;$('redo').disabled=historyCursor>=history.length}
+$('undo').onclick=function(){if(historyCursor>0){historyCursor--;addLog('Cofnięto: '+history[historyCursor]);updateUndoRedo()}};
+$('redo').onclick=function(){if(historyCursor<history.length){addLog('Ponowiono: '+history[historyCursor]);historyCursor++;updateUndoRedo()}};
+$('reset').onclick=function(){if(!sourceFile)return;if(history.length&&!confirm('Zresetować wszystkie zmiany?'))return;loadFile(sourceFile)};
+
+async function runFFmpeg(args,inputs){
+  if(!await initFFmpeg())return null;
+  setProgress(0.01,'Uruchamianie ffmpeg…');
+  try{
+    for(var i=0;i<inputs.length;i++){
+      var inp=inputs[i];
+      var data=inp.file instanceof File?await window.FFmpegUtil.fetchFile(inp.file):inp.file;
+      await ffmpeg.writeFile(inp.name,data);
+    }
+    await ffmpeg.exec(args);
+    var outName=args[args.length-1];
+    var outData=await ffmpeg.readFile(outName);
+    var mime=outName.slice(-4)==='.gif'?'image/gif':outName.slice(-5)==='.webm'?'video/webm':outName.slice(-4)==='.mkv'?'video/x-matroska':outName.slice(-4)==='.mp3'?'audio/mpeg':'video/mp4';
+    var blob=new Blob([outData.buffer],{type:mime});
+    for(var j=0;j<inputs.length;j++)try{await ffmpeg.deleteFile(inputs[j].name)}catch(_){}
+    try{await ffmpeg.deleteFile(outName)}catch(_){}
+    setProgress(0,'Gotowe');
+    return blob;
+  }catch(err){
+    console.error(err);
+    addLog('BŁĄD ffmpeg: '+err.message);
+    setProgress(0,'Błąd');
+    alert('Błąd ffmpeg: '+err.message);
+    return null;
+  }
+}
+function inputName(){var ext=(sourceMeta.name.split('.').pop()||'mp4').toLowerCase();return 'in.'+ext}
+
+$('set-start').onclick=function(){trimStart=video.currentTime;if(trimEnd!=null&&trimStart>=trimEnd)trimEnd=sourceMeta.duration;updateTrimInfo()};
+$('set-end').onclick=function(){trimEnd=video.currentTime;if(trimStart>=trimEnd)trimStart=0;updateTrimInfo()};
+$('trim-preview').onclick=function(){
+  if(playingTrim){video.pause();playingTrim=false;$('trim-preview').textContent='▶ Odtwórz';return}
+  video.currentTime=trimStart;video.play();playingTrim=true;$('trim-preview').textContent='⏹ Stop';
+  var stop=function(){if(video.currentTime>=trimEnd){video.pause();playingTrim=false;$('trim-preview').textContent='▶ Odtwórz';video.removeEventListener('timeupdate',stop)}};
+  video.addEventListener('timeupdate',stop);
+};
+$('trim-apply').onclick=async function(){
+  if(!sourceFile)return;
+  var fast=$('trim-fast').checked;
+  var args=fast?['-ss',trimStart.toFixed(3),'-to',trimEnd.toFixed(3),'-i',inputName(),'-c','copy','out.mp4']:['-i',inputName(),'-ss',trimStart.toFixed(3),'-to',trimEnd.toFixed(3),'-c:v','libx264','-crf','20','-c:a','aac','out.mp4'];
+  var blob=await runFFmpeg(args,[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Wycięcie');playResult(blob)}
+};
+
+async function rotate(deg){
+  var vf;
+  if(deg===90)vf='transpose=1';
+  else if(deg===270)vf='transpose=2';
+  else if(deg===180)vf='transpose=1,transpose=1';
+  else if(deg==='flip')vf='hflip';
+  else return;
+  var blob=await runFFmpeg(['-i',inputName(),'-vf',vf,'-c:a','copy','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Obrót: '+deg);playResult(blob)}
+}
+$('rot-90').onclick=function(){rotate(90)};
+$('rot-270').onclick=function(){rotate(270)};
+$('rot-180').onclick=function(){rotate(180)};
+$('rot-flip').onclick=function(){rotate('flip')};
+
+$('resize-lock').onclick=function(){lockAspect=!lockAspect;$('resize-lock').classList.toggle('primary',lockAspect)};
+$('resize-w').oninput=function(){if(!lockAspect||!sourceMeta.width)return;var w=+$('resize-w').value;if(w>0)$('resize-h').value=Math.round(w*sourceMeta.height/sourceMeta.width)};
+$('resize-h').oninput=function(){if(!lockAspect||!sourceMeta.height)return;var h=+$('resize-h').value;if(h>0)$('resize-w').value=Math.round(h*sourceMeta.width/sourceMeta.height)};
+$('resize-apply').onclick=async function(){
+  var w=+$('resize-w').value||sourceMeta.width;
+  var h=+$('resize-h').value||sourceMeta.height;
+  var blob=await runFFmpeg(['-i',inputName(),'-vf','scale='+w+':'+h,'-c:a','copy','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Resize '+w+'×'+h);playResult(blob)}
+};
+
+function setCRF(v){$('crf').value=v;$('crf-val').textContent=v}
+$('crf').oninput=function(){$('crf-val').textContent=$('crf').value;updateEstSize()};
+$('comp-light').onclick=function(){compress(23)};
+$('comp-medium').onclick=function(){compress(28)};
+$('comp-strong').onclick=function(){compress(34)};
+$('comp-custom').onclick=function(){var v=prompt('CRF (18–51):',$('crf').value);if(v)compress(Math.max(18,Math.min(51,+v)))};
+async function compress(crf){
+  setCRF(crf);
+  var blob=await runFFmpeg(['-i',inputName(),'-c:v','libx264','-crf',String(crf),'-preset','medium','-c:a','aac','-b:a','128k','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Kompresja CRF='+crf);playResult(blob);sizeInfo.textContent='oryginał: '+formatSize(sourceMeta.size)+' → wynik: '+formatSize(blob.size)}
+}
+
+$('speed').oninput=function(e){$('speed-val').textContent=e.target.value+'×'};
+$('speed-apply').onclick=async function(){
+  var s=+$('speed').value;
+  if(s===1)return;
+  var setpts='setpts='+(1/s).toFixed(4)+'*PTS';
+  var atempo=s>=0.5&&s<=2?'atempo='+s:s<0.5?'atempo='+(s*2).toFixed(4)+',atempo=0.5':'atempo=2.0,atempo='+(s/2).toFixed(4);
+  var blob=await runFFmpeg(['-i',inputName(),'-filter_complex','[0:v]'+setpts+'[v];[0:a]'+atempo+'[a]','-map','[v]','-map','[a]','-c:v','libx264','-crf','22','-c:a','aac','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Prędkość '+s+'×');playResult(blob)}
+};
+
+$('audio-boost').onclick=async function(){
+  var blob=await runFFmpeg(['-i',inputName(),'-af','volume=2.0','-c:v','copy','-c:a','aac','-b:a','128k','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Wzmocnienie ×2');playResult(blob)}
+};
+$('audio-normalize').onclick=async function(){
+  var blob=await runFFmpeg(['-i',inputName(),'-af','dynaudnorm','-c:v','copy','-c:a','aac','-b:a','128k','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Normalizacja');playResult(blob)}
+};
+$('audio-mute').onclick=async function(){
+  var blob=await runFFmpeg(['-i',inputName(),'-c:v','copy','-an','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Wyciszenie');playResult(blob)}
+};
+$('audio-extract').onclick=async function(){
+  var blob=await runFFmpeg(['-i',inputName(),'-vn','-c:a','libmp3lame','-b:a','192k','out.mp3'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Wyciągnięcie audio');downloadBlob(blob,sanitizeName($('export-name').value)+'.mp3')}
+};
+
+$('srt-file').onchange=async function(e){
+  var f=e.target.files[0];if(!f)return;
+  srtContent=await f.text();
+  $('srt-info').textContent='Załadowano: '+f.name;
+};
+$('subtitle-burn').onclick=async function(){
+  if(!srtContent){alert('Najpierw wgraj plik SRT.');return}
+  if(!await initFFmpeg())return;
+  await ffmpeg.writeFile('subs.srt',new TextEncoder().encode(srtContent));
+  var blob=await runFFmpeg(['-i',inputName(),'-vf',"subtitles=subs.srt:force_style='FontSize=24,PrimaryColour=&Hffffff&,OutlineColour=&H000000&,BorderStyle=3'",'-c:v','libx264','-crf','22','-c:a','copy','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  try{await ffmpeg.deleteFile('subs.srt')}catch(_){}
+  if(blob){lastResultBlob=blob;pushHistory('Wypalenie napisów');playResult(blob)}
+};
+
+$('watermark-file').onchange=function(e){watermarkFile=e.target.files[0];if(watermarkFile)$('watermark-apply').disabled=false};
+$('wm-opacity').oninput=function(e){$('wm-opacity-val').textContent=e.target.value};
+$('watermark-apply').onclick=async function(){
+  if(!watermarkFile)return;
+  var pos=$('wm-position').value,op=$('wm-opacity').value;
+  var blob=await runFFmpeg(['-i',inputName(),'-i','wm.png','-filter_complex','[1]format=rgba,colorchannelmixer=aa='+op+'[wm];[0][wm]overlay='+pos,'-c:v','libx264','-crf','22','-c:a','copy','out.mp4'],[{name:inputName(),file:sourceFile},{name:'wm.png',file:watermarkFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Znak wodny');playResult(blob)}
+};
+
+$('pip-file').onchange=function(e){pipFile=e.target.files[0];if(pipFile)$('pip-apply').disabled=false};
+$('pip-width').oninput=function(e){$('pip-width-val').textContent=e.target.value};
+$('pip-opacity').oninput=function(e){$('pip-opacity-val').textContent=e.target.value};
+$('pip-apply').onclick=async function(){
+  if(!pipFile){alert('Najpierw wgraj obraz PiP.');return}
+  var w=+$('pip-width').value,op=+$('pip-opacity').value,pos=$('pip-position').value;
+  var parts=pos.split(':');
+  var blob=await runFFmpeg(['-i',inputName(),'-i','pip.png','-filter_complex','[1]scale='+w+':-1,format=rgba,colorchannelmixer=aa='+op+'[pip];[0][pip]overlay='+parts[0]+':'+parts[1],'-c:v','libx264','-crf','22','-c:a','copy','out.mp4'],[{name:inputName(),file:sourceFile},{name:'pip.png',file:pipFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Obraz w rogu (PiP)');playResult(blob)}
+};
+
+var filterSliders={brightness:$('s-brightness'),contrast:$('s-contrast'),saturate:$('s-saturate'),hue:$('s-hue'),sharpen:$('s-sharpen')};
+Object.keys(filterSliders).forEach(function(k){
+  filterSliders[k].oninput=function(){
+    currentFilters[k]=+filterSliders[k].value;
+    $('v-'+k).textContent=k==='hue'?filterSliders[k].value:(+filterSliders[k].value).toFixed(1);
+  };
+});
+$('s-gray').onchange=function(e){currentFilters.gray=e.target.checked};
+$('filters-reset').onclick=function(){resetFiltersUI()};
+function resetFiltersUI(){
+  currentFilters={brightness:0,contrast:1,saturate:1,hue:0,sharpen:0,gray:false};
+  filterSliders.brightness.value=0;$('v-brightness').textContent='0';
+  filterSliders.contrast.value=1;$('v-contrast').textContent='1';
+  filterSliders.saturate.value=1;$('v-saturate').textContent='1';
+  filterSliders.hue.value=0;$('v-hue').textContent='0';
+  filterSliders.sharpen.value=0;$('v-sharpen').textContent='0';
+  $('s-gray').checked=false;
+}
+function buildVideoFilters(){
+  var f=currentFilters,parts=[];
+  if(f.brightness!==0)parts.push('eq=brightness='+f.brightness);
+  if(f.contrast!==1)parts.push('eq=contrast='+f.contrast);
+  if(f.saturate!==1)parts.push('eq=saturation='+f.saturate);
+  if(f.hue!==0)parts.push('hue=h='+f.hue);
+  if(f.sharpen>0)parts.push('unsharp=5:5:'+f.sharpen);
+  if(f.gray)parts.push('hue=s=0');
+  return parts.join(',');
+}
+$('filters-apply').onclick=async function(){
+  var vf=buildVideoFilters();
+  if(!vf){alert('Nie wybrano żadnych filtrów.');return}
+  var blob=await runFFmpeg(['-i',inputName(),'-vf',vf,'-c:v','libx264','-crf','20','-preset','fast','-c:a','copy','out.mp4'],[{name:inputName(),file:sourceFile}]);
+  if(blob){lastResultBlob=blob;pushHistory('Filtry obrazu');playResult(blob)}
+};
+
+document.querySelectorAll('[data-preset]').forEach(function(b){
+  b.onclick=function(){
+    var p=b.dataset.preset;
+    var presets={
+      social:['-vf','scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black','Social 9:16'],
+      square:['-vf','scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black','Kwadrat'],
+      sharp:['-vf','unsharp=5:5:1.2','Wyostrz'],
+      warm:['-vf','colorbalance=rs=0.15:gs=0.05:bs=-0.15','Ciepłe'],
+      cool:['-vf','colorbalance=rs=-0.15:gs=0.02:bs=0.15','Zimne'],
+      bw:['-vf','hue=s=0,eq=contrast=1.15','Cz.-białe'],
+      vivid:['-vf','eq=saturation=1.4:contrast=1.12','Wyraziste']
+    };
+    if(p==='small'){compress(30);return}
+    var cfg=presets[p];if(!cfg)return;
+    runFFmpeg(['-i',inputName(),cfg[0],cfg[1],'-c:v','libx264','-crf','22','-c:a','copy','out.mp4'],[{name:inputName(),file:sourceFile}]).then(function(blob){
+      if(blob){lastResultBlob=blob;pushHistory('Preset: '+cfg[2]);playResult(blob)}
     });
-  }
-  $('extra-file').onchange = e => addExtraFiles([...e.target.files]);
-
-  // ============================================================
-  // NAZWA / HISTORIA
-  // ============================================================
-  function sanitizeName(n) {
-    return (n || 'moj-film').trim()
-      .replace(/\.(mp4|webm|mkv|gif|mov|avi)$/i, '')
-      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
-      .replace(/\s+/g, '-').slice(0, 80) || 'moj-film';
-  }
-  function updateNamePreview() {
-    $('name-preview').textContent = `${sanitizeName($('export-name').value)}.${$('out-format').value}`;
-  }
-  $('export-name').addEventListener('input', updateNamePreview);
-  $('out-format').addEventListener('change', updateNamePreview);
-
-  function pushHistory(label) {
-    history = history.slice(0, historyCursor);
-    history.push(label);
-    historyCursor = history.length;
-    updateUndoRedo();
-  }
-  function updateUndoRedo() {
-    $('undo').disabled = historyCursor === 0;
-    $('redo').disabled = historyCursor >= history.length;
-  }
-  $('undo').onclick = () => { if (historyCursor > 0) { historyCursor--; addLog('Cofnięto: ' + history[historyCursor]); updateUndoRedo(); } };
-  $('redo').onclick = () => { if (historyCursor < history.length) { addLog('Ponowiono: ' + history[historyCursor]); historyCursor++; updateUndoRedo(); } };
-  $('reset').onclick = () => {
-    if (!sourceFile) return;
-    if (history.length && !confirm('Zresetować wszystkie zmiany?')) return;
-    loadFile(sourceFile);
   };
+});
 
-  // ============================================================
-  // FFMPEG RUNNER
-  // ============================================================
-  async function runFFmpeg(args, inputs) {
-    if (!await initFFmpeg()) return null;
-    setProgress(0.01, 'Uruchamianie ffmpeg…');
-    try {
-      for (const inp of inputs) {
-        const data = inp.file instanceof File ? await FFmpegUtil.fetchFile(inp.file) : inp.file;
-        await ffmpeg.writeFile(inp.name, data);
-      }
-      await ffmpeg.exec(args);
-      const outName = args[args.length - 1];
-      const outData = await ffmpeg.readFile(outName);
-      const mime = outName.endsWith('.webm') ? 'video/webm'
-                 : outName.endsWith('.mkv') ? 'video/x-matroska'
-                 : outName.endsWith('.mp3') ? 'audio/mpeg'
-                 : 'video/mp4';
-      const blob = new Blob([outData.buffer], { type: mime });
-      for (const inp of inputs) try { await ffmpeg.deleteFile(inp.name); } catch (_) {}
-      try { await ffmpeg.deleteFile(outName); } catch (_) {}
-      setProgress(0, 'Gotowe');
-      return blob;
-    } catch (err) {
-      console.error(err);
-      addLog('BŁĄD ffmpeg: ' + err.message);
-      setProgress(0, 'Błąd');
-      alert('Błąd ffmpeg: ' + err.message);
-      return null;
+$('concat').onclick=async function(){
+  if(!sourceFile)return;
+  if(!await initFFmpeg())return;
+  var selected=extraFiles.filter(function(e){return e.selected});
+  if(!selected.length){alert('Zaznacz co najmniej jeden plik z miniatur.');return}
+  addLog('Łączenie…');setProgress(0.02,'Przygotowywanie…');
+  var mainExt=sourceMeta.name.split('.').pop()||'mp4';
+  var mainName='main.'+mainExt;
+  await ffmpeg.writeFile(mainName,await window.FFmpegUtil.fetchFile(sourceFile));
+  await ffmpeg.exec(['-i',mainName,'-c:v','libx264','-crf','22','-c:a','aac','main.mp4']);
+  var listLines=['main.mp4'];
+  for(var i=0;i<selected.length;i++){
+    var e=selected[i],name='extra_'+i+'.mp4';
+    if(e.file.type.indexOf('image/')===0){
+      var imgName='extra_'+i+'.img';
+      await ffmpeg.writeFile(imgName,await window.FFmpegUtil.fetchFile(e.file));
+      await ffmpeg.exec(['-loop','1','-i',imgName,'-t','3','-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-pix_fmt','yuv420p',name]);
+      try{await ffmpeg.deleteFile(imgName)}catch(_){}
+    }else{
+      await ffmpeg.writeFile('extra_'+i+'.in',await window.FFmpegUtil.fetchFile(e.file));
+      await ffmpeg.exec(['-i','extra_'+i+'.in','-c:v','libx264','-crf','22','-c:a','aac',name]);
+      try{await ffmpeg.deleteFile('extra_'+i+'.in')}catch(_){}
     }
+    listLines.push(name);
   }
-  function inputName() {
-    const ext = (sourceMeta.name.split('.').pop() || 'mp4').toLowerCase();
-    return 'in.' + ext;
-  }
+  var listTxt=listLines.map(function(n){return "file '"+n+"'"}).join('\n');
+  await ffmpeg.writeFile('concat.txt',new TextEncoder().encode(listTxt));
+  setProgress(0.5,'Sklejanie…');
+  await ffmpeg.exec(['-f','concat','-safe','0','-i','concat.txt','-c','copy','out.mp4']);
+  try{
+    var data=await ffmpeg.readFile('out.mp4');
+    var blob=new Blob([data.buffer],{type:'video/mp4'});
+    lastResultBlob=blob;pushHistory('Połączenie klipów');playResult(blob);
+    setProgress(0,'Gotowe');
+  }catch(err){addLog('Błąd: '+err.message);setProgress(0,'Błąd')}
+  for(var k=0;k<listLines.length;k++)try{await ffmpeg.deleteFile(listLines[k])}catch(_){}
+  try{await ffmpeg.deleteFile('concat.txt')}catch(_){}
+  try{await ffmpeg.deleteFile('out.mp4')}catch(_){}
+};
 
-  // ============================================================
-  // PRZYCINANIE
-  // ============================================================
-  $('set-start').onclick = () => {
-    trimStart = video.currentTime;
-    if (trimEnd != null && trimStart >= trimEnd) trimEnd = sourceMeta.duration;
-    updateTrimInfo();
+function playResult(blob){
+  if(sourceUrl)URL.revokeObjectURL(sourceUrl);
+  sourceUrl=URL.createObjectURL(blob);
+  video.src=sourceUrl;video.load();
+  video.onloadedmetadata=function(){
+    sourceMeta.duration=video.duration;
+    sourceMeta.width=video.videoWidth;
+    sourceMeta.height=video.videoHeight;
+    sourceMeta.size=blob.size;
+    trimStart=0;trimEnd=sourceMeta.duration;
+    updateTrimInfo();updateFileInfo();updateTimeDisplay();buildTimeline();
   };
-  $('set-end').onclick = () => {
-    trimEnd = video.currentTime;
-    if (trimStart >= trimEnd) trimStart = 0;
-    updateTrimInfo();
-  };
-  $('trim-preview').onclick = () => {
-    if (playingTrim) {
-      video.pause(); playingTrim = false;
-      $('trim-preview').textContent = '▶ Podgląd'; return;
-    }
-    video.currentTime = trimStart;
-    video.play();
-    playingTrim = true;
-    $('trim-preview').textContent = '⏹ Stop';
-    const stop = () => {
-      if (video.currentTime >= trimEnd) {
-        video.pause(); playingTrim = false;
-        $('trim-preview').textContent = '▶ Podgląd';
-        video.removeEventListener('timeupdate', stop);
-      }
-    };
-    video.addEventListener('timeupdate', stop);
-  };
-  $('trim-apply').onclick = async () => {
-    if (!sourceFile) return;
-    const fast = $('trim-fast').checked;
-    const args = fast
-      ? ['-ss', trimStart.toFixed(3), '-to', trimEnd.toFixed(3), '-i', inputName(), '-c', 'copy', 'out.mp4']
-      : ['-i', inputName(), '-ss', trimStart.toFixed(3), '-to', trimEnd.toFixed(3), '-c:v', 'libx264', '-crf', '20', '-c:a', 'aac', 'out.mp4'];
-    const blob = await runFFmpeg(args, [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Wycięcie'); playResult(blob); }
-  };
+  sizeInfo.textContent='wynik: '+formatSize(blob.size);
+  updateEstSize();
+}
+function downloadBlob(blob,filename){
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href)},1500);
+}
+function updateEstSize(){
+  if(!sourceFile){$('est-size').textContent='Szacowany rozmiar: —';return}
+  var crf=+$('crf').value;
+  var factor=Math.pow(0.75,(crf-23)/6);
+  var est=sourceMeta.size*Math.max(0.05,Math.min(2,factor));
+  $('est-size').textContent='Szacowany rozmiar: ~'+formatSize(est);
+}
 
-  // ============================================================
-  // OBRÓT / ODBICIE
-  // ============================================================
-  async function rotate(deg) {
-    let vf;
-    if (deg === 90) vf = 'transpose=1';
-    else if (deg === 270) vf = 'transpose=2';
-    else if (deg === 180) vf = 'transpose=1,transpose=1';
-    else if (deg === 'flip') vf = 'hflip';
-    else return;
-    const blob = await runFFmpeg(['-i', inputName(), '-vf', vf, '-c:a', 'copy', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Obrót: ' + deg); playResult(blob); }
-  }
-  $('rot-90').onclick  = () => rotate(90);
-  $('rot-270').onclick = () => rotate(270);
-  $('rot-180').onclick = () => rotate(180);
-  $('rot-flip').onclick = () => rotate('flip');
+$('play-pause').onclick=function(){video.paused?video.play():video.pause()};
+video.addEventListener('play',function(){$('play-pause').textContent='⏸'});
+video.addEventListener('pause',function(){$('play-pause').textContent='▶'});
+video.addEventListener('volumechange',function(){$('mute-btn').textContent=video.muted||video.volume===0?'🔇':'🔊'});
+$('mute-btn').onclick=function(){video.muted=!video.muted};
 
-  // ============================================================
-  // RESIZE
-  // ============================================================
-  $('resize-lock').onclick = () => {
-    lockAspect = !lockAspect;
-    $('resize-lock').classList.toggle('locked', lockAspect);
-  };
-  $('resize-w').oninput = () => {
-    if (!lockAspect || !sourceMeta.width) return;
-    const w = +$('resize-w').value;
-    if (w > 0) $('resize-h').value = Math.round(w * sourceMeta.height / sourceMeta.width);
-  };
-  $('resize-h').oninput = () => {
-    if (!lockAspect || !sourceMeta.height) return;
-    const h = +$('resize-h').value;
-    if (h > 0) $('resize-w').value = Math.round(h * sourceMeta.width / sourceMeta.height);
-  };
-  $('resize-apply').onclick = async () => {
-    const w = +$('resize-w').value || sourceMeta.width;
-    const h = +$('resize-h').value || sourceMeta.height;
-    const blob = await runFFmpeg(['-i', inputName(), '-vf', `scale=${w}:${h}`, '-c:a', 'copy', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory(`Resize ${w}×${h}`); playResult(blob); }
-  };
+$('export').onclick=function(){
+  var blob=lastResultBlob;
+  var name=sanitizeName($('export-name').value);
+  var ext=$('out-format').value;
+  if(!blob){downloadBlob(sourceFile,name+'.'+(sourceFile.name.split('.').pop()||'mp4'));return}
+  downloadBlob(blob,name+'.'+ext);
+};
 
-  // ============================================================
-  // KOMPRESJA
-  // ============================================================
-  function setCRF(v) { $('crf').value = v; $('crf-val').textContent = v; }
-  $('crf').oninput = () => { $('crf-val').textContent = $('crf').value; updateEstSize(); };
-  $('comp-light').onclick  = () => compress(23);
-  $('comp-medium').onclick = () => compress(28);
-  $('comp-strong').onclick = () => compress(34);
-  $('comp-custom').onclick = () => {
-    const v = prompt('CRF (18–51):', $('crf').value);
-    if (v) compress(Math.max(18, Math.min(51, +v)));
-  };
-  async function compress(crf) {
-    setCRF(crf);
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-c:v', 'libx264', '-crf', String(crf), '-preset', 'medium',
-       '-c:a', 'aac', '-b:a', '128k', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) {
-      lastResultBlob = blob; pushHistory('Kompresja CRF=' + crf); playResult(blob);
-      sizeInfo.textContent = `oryginał: ${formatSize(sourceMeta.size)} → wynik: ${formatSize(blob.size)}`;
-    }
-  }
+document.addEventListener('keydown',function(e){
+  var tag=document.activeElement&&document.activeElement.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+  if(e.code==='Space'){e.preventDefault();$('play-pause').click()}
+  if(e.key==='Home'){video.currentTime=0}
+  if(e.key==='End'){video.currentTime=video.duration}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!e.shiftKey){e.preventDefault();$('undo').click()}
+  if((e.ctrlKey||e.metaKey)&&(e.key.toLowerCase()==='y'||(e.key.toLowerCase()==='z'&&e.shiftKey))){e.preventDefault();$('redo').click()}
+});
 
-  // ============================================================
-  // PRĘDKOŚĆ
-  // ============================================================
-  $('speed').oninput = e => { $('speed-val').textContent = e.target.value + '×'; };
-  $('speed-apply').onclick = async () => {
-    const s = +$('speed').value;
-    if (s === 1) return;
-    const setpts = `setpts=${(1/s).toFixed(4)}*PTS`;
-    const atempo = s >= 0.5 && s <= 2 ? `atempo=${s}`
-                 : s < 0.5 ? `atempo=${(s*2).toFixed(4)},atempo=0.5`
-                 : `atempo=2.0,atempo=${(s/2).toFixed(4)}`;
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-filter_complex', `[0:v]${setpts}[v];[0:a]${atempo}[a]`,
-       '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-crf', '22', '-c:a', 'aac', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory(`Prędkość ${s}×`); playResult(blob); }
-  };
-
-  // ============================================================
-  // AUDIO
-  // ============================================================
-  $('audio-boost').onclick = async () => {
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-af', 'volume=2.0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Wzmocnienie ×2'); playResult(blob); }
-  };
-  $('audio-normalize').onclick = async () => {
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-af', 'dynaudnorm', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Normalizacja'); playResult(blob); }
-  };
-  $('audio-mute').onclick = async () => {
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-c:v', 'copy', '-an', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Wyciszenie'); playResult(blob); }
-  };
-  $('audio-extract').onclick = async () => {
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-vn', '-c:a', 'libmp3lame', '-b:a', '192k', 'out.mp3'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) {
-      lastResultBlob = blob; pushHistory('Wyciągnięcie audio');
-      downloadBlob(blob, sanitizeName($('export-name').value) + '.mp3');
-    }
-  };
-
-  // ============================================================
-  // NAPISY
-  // ============================================================
-  $('srt-file').onchange = async e => {
-    const f = e.target.files[0]; if (!f) return;
-    srtContent = await f.text();
-    $('srt-info').textContent = 'Załadowano: ' + f.name;
-  };
-  $('subtitle-burn').onclick = async () => {
-    if (!srtContent) { alert('Najpierw wgraj plik SRT.'); return; }
-    if (!await initFFmpeg()) return;
-    await ffmpeg.writeFile('subs.srt', new TextEncoder().encode(srtContent));
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-vf',
-       "subtitles=subs.srt:force_style='FontSize=24,PrimaryColour=&Hffffff&,OutlineColour=&H000000&,BorderStyle=3'",
-       '-c:v', 'libx264', '-crf', '22', '-c:a', 'copy', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    try { await ffmpeg.deleteFile('subs.srt'); } catch(_) {}
-    if (blob) { lastResultBlob = blob; pushHistory('Wypalenie napisów'); playResult(blob); }
-  };
-
-  // ============================================================
-  // ZNAK WODNY
-  // ============================================================
-  $('watermark-file').onchange = e => {
-    watermarkFile = e.target.files[0];
-    if (watermarkFile) $('watermark-apply').disabled = false;
-  };
-  $('wm-opacity').oninput = e => { $('wm-opacity-val').textContent = e.target.value; };
-  $('watermark-apply').onclick = async () => {
-    if (!watermarkFile) return;
-    const pos = $('wm-position').value;
-    const op = $('wm-opacity').value;
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-i', 'wm.png',
-       '-filter_complex', `[1]format=rgba,colorchannelmixer=aa=${op}[wm];[0][wm]overlay=${pos}`,
-       '-c:v', 'libx264', '-crf', '22', '-c:a', 'copy', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }, { name: 'wm.png', file: watermarkFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Znak wodny'); playResult(blob); }
-  };
-
-  // ============================================================
-  // PIP
-  // ============================================================
-  $('pip-file').onchange = e => {
-    pipFile = e.target.files[0];
-    if (pipFile) $('pip-apply').disabled = false;
-  };
-  $('pip-width').oninput = e => { $('pip-width-val').textContent = e.target.value; };
-  $('pip-opacity').oninput = e => { $('pip-opacity-val').textContent = e.target.value; };
-  $('pip-apply').onclick = async () => {
-    if (!pipFile) { alert('Najpierw wgraj obraz PiP.'); return; }
-    const w = +$('pip-width').value;
-    const op = +$('pip-opacity').value;
-    const pos = $('pip-position').value;
-    const [px, py] = pos.split(':');
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-i', 'pip.png',
-       '-filter_complex', `[1]scale=${w}:-1,format=rgba,colorchannelmixer=aa=${op}[pip];[0][pip]overlay=${px}:${py}`,
-       '-c:v', 'libx264', '-crf', '22', '-c:a', 'copy', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }, { name: 'pip.png', file: pipFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Obraz w rogu (PiP)'); playResult(blob); }
-  };
-
-  // ============================================================
-  // FILTRY
-  // ============================================================
-  const filterSliders = { brightness: $('s-brightness'), contrast: $('s-contrast'),
-                          saturate: $('s-saturate'), hue: $('s-hue'), sharpen: $('s-sharpen') };
-  Object.entries(filterSliders).forEach(([k, el]) => {
-    el.oninput = () => {
-      currentFilters[k] = +el.value;
-      $('v-' + k).textContent = k === 'hue' ? el.value : (+el.value).toFixed(1);
-    };
-  });
-  $('s-gray').onchange = e => { currentFilters.gray = e.target.checked; };
-  $('filters-reset').onclick = () => resetFiltersUI();
-  function resetFiltersUI() {
-    currentFilters = { brightness:0, contrast:1, saturate:1, hue:0, sharpen:0, gray:false };
-    filterSliders.brightness.value = 0; $('v-brightness').textContent = '0';
-    filterSliders.contrast.value = 1;   $('v-contrast').textContent = '1';
-    filterSliders.saturate.value = 1;   $('v-saturate').textContent = '1';
-    filterSliders.hue.value = 0;        $('v-hue').textContent = '0';
-    filterSliders.sharpen.value = 0;    $('v-sharpen').textContent = '0';
-    $('s-gray').checked = false;
-  }
-  function buildVideoFilters() {
-    const f = currentFilters, parts = [];
-    if (f.brightness !== 0) parts.push(`eq=brightness=${f.brightness}`);
-    if (f.contrast !== 1)   parts.push(`eq=contrast=${f.contrast}`);
-    if (f.saturate !== 1)   parts.push(`eq=saturation=${f.saturate}`);
-    if (f.hue !== 0)        parts.push(`hue=h=${f.hue}`);
-    if (f.sharpen > 0)      parts.push(`unsharp=5:5:${f.sharpen}`);
-    if (f.gray)             parts.push('hue=s=0');
-    return parts.join(',');
-  }
-  $('filters-apply').onclick = async () => {
-    const vf = buildVideoFilters();
-    if (!vf) { alert('Nie wybrano żadnych filtrów.'); return; }
-    const blob = await runFFmpeg(
-      ['-i', inputName(), '-vf', vf, '-c:v', 'libx264', '-crf', '20', '-preset', 'fast', '-c:a', 'copy', 'out.mp4'],
-      [{ name: inputName(), file: sourceFile }]);
-    if (blob) { lastResultBlob = blob; pushHistory('Filtry obrazu'); playResult(blob); }
-  };
-
-  // ============================================================
-  // PRESETY
-  // ============================================================
-  document.querySelectorAll('[data-preset]').forEach(b => {
-    b.onclick = () => {
-      const p = b.dataset.preset;
-      const presets = {
-        social: ['-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black', 'Social 9:16'],
-        square: ['-vf', 'scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black', 'Kwadrat'],
-        sharp:  ['-vf', 'unsharp=5:5:1.2', 'Wyostrz'],
-        warm:   ['-vf', 'colorbalance=rs=0.15:gs=0.05:bs=-0.15', 'Ciepłe'],
-        cool:   ['-vf', 'colorbalance=rs=-0.15:gs=0.02:bs=0.15', 'Zimne'],
-        bw:     ['-vf', 'hue=s=0,eq=contrast=1.15', 'Cz.-białe'],
-        vivid:  ['-vf', 'eq=saturation=1.4:contrast=1.12', 'Wyraziste'],
-      };
-      if (p === 'small') { compress(30); return; }
-      const cfg = presets[p]; if (!cfg) return;
-      runFFmpeg(
-        ['-i', inputName(), ...cfg.slice(0, 2), '-c:v', 'libx264', '-crf', '22', '-c:a', 'copy', 'out.mp4'],
-        [{ name: inputName(), file: sourceFile }]
-      ).then(blob => { if (blob) { lastResultBlob = blob; pushHistory('Preset: ' + cfg[2]); playResult(blob); } });
-    };
-  });
-
-  // ============================================================
-  // ŁĄCZENIE
-  // ============================================================
-  $('concat').onclick = async () => {
-    if (!sourceFile) return;
-    if (!await initFFmpeg()) return;
-    const selected = extraFiles.filter(e => e.selected);
-    if (!selected.length) { alert('Zaznacz co najmniej jeden plik z miniatur.'); return; }
-    addLog('Łączenie…');
-    setProgress(0.02, 'Przygotowywanie…');
-
-    await ffmpeg.writeFile('main.' + (sourceMeta.name.split('.').pop() || 'mp4'),
-                           await FFmpegUtil.fetchFile(sourceFile));
-    const mainName = 'main.' + (sourceMeta.name.split('.').pop() || 'mp4');
-
-    // Konwertuj main do MP4 jeśli potrzeba
-    await ffmpeg.exec(['-i', mainName, '-c:v', 'libx264', '-crf', '22', '-c:a', 'aac', 'main.mp4']);
-
-    const listLines = ['main.mp4'];
-    for (let i = 0; i < selected.length; i++) {
-      const e = selected[i];
-      const name = `extra_${i}.mp4`;
-      if (e.file.type.startsWith('image/')) {
-        const imgName = `extra_${i}.img`;
-        await ffmpeg.writeFile(imgName, await FFmpegUtil.fetchFile(e.file));
-        await ffmpeg.exec(['-loop','1','-i',imgName,'-t','3','-vf',
-          'scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-pix_fmt','yuv420p',name]);
-        try { await ffmpeg.deleteFile(imgName); } catch(_) {}
-      } else {
-        await ffmpeg.writeFile(`extra_${i}.in`, await FFmpegUtil.fetchFile(e.file));
-        await ffmpeg.exec(['-i',`extra_${i}.in`,'-c:v','libx264','-crf','22','-c:a','aac',name]);
-        try { await ffmpeg.deleteFile(`extra_${i}.in`); } catch(_) {}
-      }
-      listLines.push(name);
-    }
-    const listTxt = listLines.map(n => `file '${n}'`).join('\n');
-    await ffmpeg.writeFile('concat.txt', new TextEncoder().encode(listTxt));
-    setProgress(0.5, 'Sklejanie…');
-    await ffmpeg.exec(['-f','concat','-safe','0','-i','concat.txt','-c','copy','out.mp4']);
-    try {
-      const data = await ffmpeg.readFile('out.mp4');
-      const blob = new Blob([data.buffer], { type: 'video/mp4' });
-      lastResultBlob = blob; pushHistory('Połączenie klipów'); playResult(blob);
-      setProgress(0, 'Gotowe');
-    } catch (err) { addLog('Błąd: ' + err.message); setProgress(0, 'Błąd'); }
-    for (const n of [...listLines, mainName, 'main.mp4']) try { await ffmpeg.deleteFile(n); } catch(_) {}
-    try { await ffmpeg.deleteFile('concat.txt'); } catch(_) {}
-    try { await ffmpeg.deleteFile('out.mp4'); } catch(_) {}
-  };
-
-  // ============================================================
-  // POMOCNICZE
-  // ============================================================
-  function playResult(blob) {
-    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-    sourceUrl = URL.createObjectURL(blob);
-    video.src = sourceUrl;
-    video.load();
-    video.onloadedmetadata = () => {
-      sourceMeta.duration = video.duration;
-      sourceMeta.width = video.videoWidth;
-      sourceMeta.height = video.videoHeight;
-      sourceMeta.size = blob.size;
-      trimStart = 0; trimEnd = sourceMeta.duration;
-      updateTrimInfo(); updateFileInfo(); updateTimeDisplay(); buildTimeline();
-    };
-    sizeInfo.textContent = `wynik: ${formatSize(blob.size)}`;
-    updateEstSize();
-  }
-  function downloadBlob(blob, filename) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-  }
-  function updateEstSize() {
-    if (!sourceFile) { $('est-size').textContent = 'Szacowany rozmiar: —'; return; }
-    const crf = +$('crf').value;
-    const factor = Math.pow(0.75, (crf - 23) / 6);
-    const est = sourceMeta.size * Math.max(0.05, Math.min(2, factor));
-    $('est-size').textContent = `Szacowany rozmiar: ~${formatSize(est)}`;
-  }
-
-  // ============================================================
-  // PODGLĄD
-  // ============================================================
-  $('play-pause').onclick = () => video.paused ? video.play() : video.pause();
-  video.addEventListener('play', () => { $('play-pause').textContent = '⏸'; });
-  video.addEventListener('pause', () => { $('play-pause').textContent = '▶'; });
-  video.addEventListener('volumechange', () => {
-    $('mute-btn').textContent = video.muted || video.volume === 0 ? '🔇' : '🔊';
-  });
-  $('mute-btn').onclick = () => { video.muted = !video.muted; };
-
-  // ============================================================
-  // EKSPORT
-  // ============================================================
-  $('export').onclick = () => {
-    const blob = lastResultBlob;
-    const name = sanitizeName($('export-name').value);
-    const ext = $('out-format').value;
-    if (!blob) {
-      downloadBlob(sourceFile, name + '.' + (sourceFile.name.split('.').pop() || 'mp4'));
-      return;
-    }
-    downloadBlob(blob, `${name}.${ext}`);
-  };
-
-  // ============================================================
-  // KLAWIATURA
-  // ============================================================
-  document.addEventListener('keydown', e => {
-    const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-    if (e.code === 'Space') { e.preventDefault(); $('play-pause').click(); }
-    if (e.key === 'Home') { video.currentTime = 0; }
-    if (e.key === 'End') { video.currentTime = video.duration; }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-      e.preventDefault(); $('undo').click();
-    }
-    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' ||
-        (e.key.toLowerCase() === 'z' && e.shiftKey))) {
-      e.preventDefault(); $('redo').click();
-    }
-  });
-
-  updateNamePreview();
-  updateTimeDisplay();
-  enableUI(false);
+updateNamePreview();
+updateTimeDisplay();
+enableUI(false);
 })();
 </script>
 </body>
