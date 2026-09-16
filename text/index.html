@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8"><title>Edytor tekstu</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: #1a1a1e; color: #e8e8ea;
+    display: grid; grid-template-columns: 310px 1fr;
+    height: 100vh; overflow: hidden;
+  }
+  aside {
+    background: #111114; border-right: 1px solid #2a2a30;
+    overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column;
+  }
+  aside h1 {
+    font-size: 14px; margin: 0 0 14px; color: #a8a8b3;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .group { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #2a2a30; }
+  .group:last-child { border-bottom: none; margin-bottom: 0; }
+  .group h3 {
+    font-size: 11px; text-transform: uppercase; color: #7a7a86;
+    margin: 0 0 8px; letter-spacing: .5px;
+  }
+  button {
+    padding: 7px 10px; background: #2a2a32; color: #e8e8ea;
+    border: 1px solid #3a3a44; border-radius: 6px; cursor: pointer;
+    font-size: 12px; transition: .12s; font-family: inherit;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: #3a3a44; }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  button.primary { background: #3a5cff; border-color: #3a5cff; }
+  button.primary:hover:not(:disabled) { background: #4a6cff; }
+  .row { display: flex; gap: 5px; margin-bottom: 6px; }
+  .row button { flex: 1; min-width: 50px; }
+
+  #doc-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+  .doc-item {
+    padding: 8px 10px; background: #1e1e24; border: 1px solid #2a2a30;
+    border-radius: 6px; cursor: pointer; font-size: 12px;
+    display: flex; justify-content: space-between; align-items: center; gap: 6px;
+    transition: .12s;
+  }
+  .doc-item:hover { background: #25253a; border-color: #3a5cff; }
+  .doc-item.active { background: #1a2452; border-color: #3a5cff; }
+  .doc-item .doc-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-item .doc-title small { display: block; font-size: 10px; color: #7a7a86; margin-top: 2px; }
+  .doc-item .doc-del {
+    background: transparent; border: none; color: #7a7a86;
+    padding: 2px 6px; font-size: 12px; cursor: pointer; border-radius: 4px;
+  }
+  .doc-item .doc-del:hover { background: #7f1d1d; color: #fff; }
+
+  /* szablony promptów */
+  .prompt-btn {
+    display: block; width: 100%; text-align: left;
+    padding: 8px 10px; background: #1e1e24; border: 1px solid #2a2a30;
+    border-radius: 6px; color: #e8e8ea; font-size: 12px;
+    cursor: pointer; transition: .12s; margin-bottom: 4px;
+    line-height: 1.4;
+  }
+  .prompt-btn:hover { background: #25253a; border-color: #3a5cff; }
+  .prompt-btn .p-emoji { margin-right: 6px; }
+  .prompt-btn .p-desc {
+    display: block; font-size: 10px; color: #7a7a86; margin-top: 2px;
+    white-space: normal;
+  }
+
+  /* spis treści / statystyki */
+  #toc { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
+  #toc:empty::after {
+    content: 'Brak nagłówków'; display: block; text-align: center;
+    font-size: 11px; color: #5a5a66; padding: 8px; font-style: italic;
+  }
+  .toc-item {
+    padding: 4px 8px; font-size: 12px; cursor: pointer;
+    border-radius: 4px; color: #a8a8b3; transition: .12s;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .toc-item:hover { background: #1e1e24; color: #e8e8ea; }
+  .toc-item.h1 { font-weight: 600; padding-left: 8px; }
+  .toc-item.h2 { padding-left: 20px; }
+  .toc-item.h3 { padding-left: 32px; font-size: 11px; }
+  .toc-item.h4, .toc-item.h5, .toc-item.h6 { padding-left: 44px; font-size: 11px; color: #7a7a86; }
+
+  #stats-side { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .stat-box {
+    background: #1e1e24; border: 1px solid #2a2a30; border-radius: 6px;
+    padding: 6px 8px;
+  }
+  .stat-box .v { font-size: 15px; font-weight: 700; color: #e8e8ea;
+                 font-family: ui-monospace, monospace; }
+  .stat-box .l { font-size: 10px; color: #7a7a86; text-transform: uppercase;
+                 letter-spacing: .3px; }
+
+  /* ============ MAIN ============ */
+  main { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  #toolbar {
+    flex: 0 0 auto; padding: 8px 12px; background: #0e0e12;
+    border-bottom: 1px solid #2a2a30;
+    display: flex; gap: 4px; align-items: center; flex-wrap: wrap;
+  }
+  #toolbar .tb-group { display: flex; gap: 2px; }
+  #toolbar .tb-group + .tb-group {
+    margin-left: 8px; padding-left: 8px; border-left: 1px solid #2a2a30;
+  }
+  #toolbar .spacer { flex: 1; }
+  .tb-btn {
+    padding: 6px 9px; background: transparent; color: #a8a8b3;
+    border: 1px solid transparent; border-radius: 5px; cursor: pointer;
+    font-size: 13px; font-family: inherit; min-width: 32px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tb-btn:hover:not(:disabled) { background: #2a2a32; color: #e8e8ea; }
+  .tb-btn.active { background: #1a2452; color: #3a5cff; border-color: #3a5cff; }
+  .tb-btn b, .tb-btn i, .tb-btn u, .tb-btn s { font-family: inherit; }
+
+  /* tryb przełącznik */
+  .mode-switch {
+    display: inline-flex; padding: 2px; background: #1e1e24;
+    border: 1px solid #2a2a30; border-radius: 8px;
+  }
+  .mode-switch button {
+    padding: 5px 12px; background: transparent; border: none;
+    color: #a8a8b3; font-size: 12px; font-weight: 500; border-radius: 6px;
+    cursor: pointer; transition: .12s;
+  }
+  .mode-switch button:hover { color: #e8e8ea; }
+  .mode-switch button.active {
+    background: #3a5cff; color: #fff;
+  }
+
+  #split { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+  #editor-wrap, #preview-wrap, #simple-wrap {
+    flex: 1; min-width: 0; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  #editor-wrap { background: #14141a; }
+  #preview-wrap { background: #0f0f14; }
+  #simple-wrap { background: #0f0f14; display: none; }
+  body.mode-simple #editor-wrap { display: none; }
+  body.mode-simple #preview-wrap { display: none; }
+  body.mode-simple #simple-wrap { display: flex; }
+
+  body.mode-editor #preview-wrap, body.mode-editor #simple-wrap { display: none; }
+  body.mode-editor #editor-wrap { border-right: none; }
+  body.mode-preview #editor-wrap, body.mode-preview #simple-wrap { display: none; }
+  body.mode-preview #preview-wrap { flex: 1; }
+
+  .pane-header {
+    flex: 0 0 auto; padding: 6px 14px; background: #0e0e12;
+    border-bottom: 1px solid #2a2a30;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; color: #7a7a86; text-transform: uppercase; letter-spacing: .5px;
+  }
+  .pane-header .info { font-family: ui-monospace, monospace; text-transform: none; letter-spacing: 0; }
+
+  #editor {
+    flex: 1; width: 100%; padding: 20px 24px; background: transparent;
+    color: #e8e8ea; border: none; outline: none; resize: none;
+    font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: 14px; line-height: 1.7;
+    caret-color: #3a5cff;
+  }
+  #editor::selection { background: #3a5cff; color: #fff; }
+
+  #preview, #simple-editor {
+    flex: 1; overflow-y: auto; padding: 24px 32px;
+    font-size: 15px; line-height: 1.75; color: #d8d8dc;
+  }
+  #simple-editor { outline: none; cursor: text; }
+  #simple-editor:focus { background: rgba(58,92,255,0.03); }
+  #simple-editor > *:first-child, #preview > *:first-child { margin-top: 0; }
+
+  #preview h1, #preview h2, #preview h3, #preview h4, #preview h5, #preview h6,
+  #simple-editor h1, #simple-editor h2, #simple-editor h3,
+  #simple-editor h4, #simple-editor h5, #simple-editor h6 {
+    color: #fff; font-weight: 700; letter-spacing: -0.01em;
+    margin: 1.4em 0 0.5em; line-height: 1.3;
+  }
+  #preview h1, #simple-editor h1 { font-size: 2em; border-bottom: 1px solid #2a2a30; padding-bottom: .3em; }
+  #preview h2, #simple-editor h2 { font-size: 1.55em; border-bottom: 1px solid #23232a; padding-bottom: .25em; }
+  #preview h3, #simple-editor h3 { font-size: 1.3em; }
+  #preview h4, #simple-editor h4 { font-size: 1.1em; }
+  #preview p, #simple-editor p { margin: 0 0 1em; }
+  #preview strong, #simple-editor strong { color: #fff; font-weight: 600; }
+  #preview a, #simple-editor a { color: #5a7cff; text-decoration: none; border-bottom: 1px solid rgba(90,124,255,.3); }
+  #preview code, #simple-editor code {
+    background: #1e1e24; padding: 2px 6px; border-radius: 4px;
+    font-family: ui-monospace, monospace; font-size: .9em; color: #a8c2ff;
+  }
+  #preview pre, #simple-editor pre {
+    background: #0a0a0e; border: 1px solid #2a2a30; border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 1em 0;
+  }
+  #preview pre code, #simple-editor pre code { background: transparent; padding: 0; color: #d8d8dc; }
+  #preview blockquote, #simple-editor blockquote {
+    border-left: 3px solid #3a5cff; padding: 4px 16px; margin: 1em 0;
+    color: #a8a8b3; background: rgba(58,92,255,.05); border-radius: 0 6px 6px 0;
+  }
+  #preview ul, #preview ol, #simple-editor ul, #simple-editor ol {
+    padding-left: 1.6em; margin: 0 0 1em;
+  }
+  #preview hr, #simple-editor hr { border: none; border-top: 1px solid #2a2a30; margin: 2em 0; }
+  #preview img, #simple-editor img { max-width: 100%; border-radius: 6px; }
+  #preview table, #simple-editor table {
+    border-collapse: collapse; margin: 1em 0; width: 100%; font-size: .92em;
+  }
+  #preview th, #preview td, #simple-editor th, #simple-editor td {
+    border: 1px solid #2a2a30; padding: 8px 12px; text-align: left;
+  }
+  #preview th, #simple-editor th { background: #1e1e24; color: #fff; font-weight: 600; }
+  #preview tr:nth-child(even) td, #simple-editor tr:nth-child(even) td { background: #131318; }
+
+  /* placeholder dla pustego simple-editora */
+  #simple-editor:empty::before {
+    content: 'Kliknij tutaj i pisz jak w Wordzie — nagłówki, pogrubienia, listy…';
+    color: #5a5a66; font-style: italic;
+  }
+
+  #find-bar {
+    flex: 0 0 auto; padding: 8px 14px; background: #0e0e12;
+    border-bottom: 1px solid #2a2a30;
+    display: none; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  #find-bar.visible { display: flex; }
+  #find-bar input[type=text] {
+    padding: 6px 10px; background: #1e1e24; color: #e8e8ea;
+    border: 1px solid #3a3a44; border-radius: 5px; font-size: 13px;
+    font-family: inherit; min-width: 160px;
+  }
+  #find-bar input[type=text]:focus { outline: none; border-color: #3a5cff; }
+  #find-bar .find-info { font-size: 11px; color: #7a7a86; font-family: ui-monospace, monospace; margin-left: 4px; }
+
+  #statusbar {
+    flex: 0 0 auto; padding: 5px 14px; background: #0e0e12;
+    border-top: 1px solid #2a2a30;
+    display: flex; justify-content: space-between; font-size: 11px;
+    color: #7a7a86; font-family: ui-monospace, monospace; gap: 16px;
+  }
+  #statusbar .sb-item { display: flex; gap: 5px; align-items: center; }
+  #statusbar .saved { color: #16a34a; }
+  #statusbar .unsaved { color: #f59e0b; }
+
+  body.focus aside, body.focus #toolbar, body.focus .pane-header { display: none; }
+  body.focus { grid-template-columns: 1fr; }
+  body.focus #editor { padding: 40px 10%; font-size: 16px; }
+  body.focus #preview, body.focus #simple-editor { padding: 40px 10%; font-size: 17px; }
+
+  /* ============ MODAL — Dlaczego Markdown ============ */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-backdrop.visible { display: flex; }
+  .modal {
+    background: #1a1a1e; border: 1px solid #2a2a30; border-radius: 14px;
+    max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto;
+    padding: 32px; box-shadow: 0 24px 64px rgba(0,0,0,.6);
+  }
+  .modal h2 {
+    font-size: 22px; margin: 0 0 8px; color: #fff; letter-spacing: -0.01em;
+  }
+  .modal .sub {
+    color: #7a7a86; font-size: 13px; margin: 0 0 20px;
+  }
+  .modal p {
+    font-size: 14px; line-height: 1.65; color: #d8d8dc; margin: 0 0 14px;
+  }
+  .modal .why {
+    background: #14141a; border-left: 3px solid #3a5cff;
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
+    font-size: 13px; line-height: 1.6; color: #c8c8cc;
+  }
+  .modal .why b { color: #fff; }
+  .modal .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0;
+  }
+  .modal .compare > div {
+    background: #14141a; padding: 12px; border-radius: 8px;
+    font-size: 12px; line-height: 1.5;
+  }
+  .modal .compare .yes { border: 1px solid rgba(22,163,74,.4); }
+  .modal .compare .no { border: 1px solid rgba(220,38,38,.3); }
+  .modal .compare h4 {
+    margin: 0 0 8px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .modal .compare .yes h4 { color: #16a34a; }
+  .modal .compare .no h4 { color: #dc2626; }
+  .modal .compare ul { margin: 0; padding-left: 18px; }
+  .modal .compare li { margin: 3px 0; }
+  .modal .actions {
+    display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .modal .actions button { padding: 10px 18px; font-size: 13px; }
+  .modal code {
+    background: #1e1e24; padding: 2px 6px; border-radius: 4px;
+    font-family: ui-monospace, monospace; font-size: 12px; color: #a8c2ff;
+  }
+
+  /* light theme */
+  body.light { background: #f5f5f7; color: #1a1a1e; }
+  body.light aside { background: #ebebf0; border-right-color: #d5d5da; }
+  body.light button { background: #dcdce2; color: #1a1a1e; border-color: #c5c5cc; }
+  body.light button:hover:not(:disabled) { background: #ccccd3; }
+  body.light .prompt-btn { background: #f0f0f4; border-color: #d5d5da; }
+  body.light .prompt-btn:hover { background: #e0e0e8; border-color: #3a5cff; }
+  body.light #editor-wrap, body.light #simple-wrap { background: #ffffff; }
+  body.light #preview-wrap { background: #fafafc; }
+  body.light #editor, body.light #preview, body.light #simple-editor { color: #1a1a1e; }
+  body.light .modal { background: #fff; }
+  body.light .modal h2 { color: #0a0a0e; }
+  body.light .modal p { color: #2a2a30; }
+  body.light .modal .why, body.light .modal .compare > div { background: #f5f5f9; }
+</style>
+</head>
+<body class="mode-split">
+
+<aside>
+  <h1>Edytor tekstu</h1>
+
+  <div class="group">
+    <div class="row">
+      <button class="primary" id="new-doc" style="flex:2">📄 Nowy</button>
+      <button id="open-file" title="Otwórz plik">📂</button>
+    </div>
+    <input type="file" id="file-input" accept=".md,.txt,.markdown,.html,.htm" style="display:none">
+    <div class="row">
+      <button id="save-md" title="Zapisz jako .md">💾 .md</button>
+      <button id="save-txt" title="Zapisz jako .txt">.txt</button>
+      <button id="save-html" title="Zapisz jako .html">.html</button>
+    </div>
+    <div class="row">
+      <button id="print-btn">🖨 Drukuj/PDF</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>📝 Szablony promptów</h3>
+    <button class="prompt-btn" data-template="article">
+      <span class="p-emoji">✍️</span>Napisz artykuł
+      <span class="p-desc">Tekst od zera na wybrany temat</span>
+    </button>
+    <button class="prompt-btn" data-template="summarize">
+      <span class="p-emoji">📋</span>Streść tekst
+      <span class="p-desc">Skrót dokumentu, notatki, artykułu</span>
+    </button>
+    <button class="prompt-btn" data-template="improve">
+      <span class="p-emoji">✨</span>Popraw styl
+      <span class="p-desc">Ten sam sens, lepsze brzmienie</span>
+    </button>
+    <button class="prompt-btn" data-template="translate">
+      <span class="p-emoji">🌍</span>Przetłumacz
+      <span class="p-desc">Z zachowaniem tonu i kontekstu</span>
+    </button>
+    <button class="prompt-btn" data-template="ideas">
+      <span class="p-emoji">💡</span>Wygeneruj pomysły
+      <span class="p-desc">Burza mózgów na zadany temat</span>
+    </button>
+    <button class="prompt-btn" data-template="code">
+      <span class="p-emoji">💻</span>Popraw kod
+      <span class="p-desc">Błędy, styl, wydajność</span>
+    </button>
+    <button class="prompt-btn" data-template="explain">
+      <span class="p-emoji">🎓</span>Wyjaśnij pojęcie
+      <span class="p-desc">Prostym językiem, na przykładach</span>
+    </button>
+    <button class="prompt-btn" data-template="analyze">
+      <span class="p-emoji">📊</span>Przeanalizuj dane
+      <span class="p-desc">Wnioski, wzorce, rekomendacje</span>
+    </button>
+    <button class="prompt-btn" data-template="custom" style="border-style:dashed;color:#7a7a86;font-style:italic">
+      <span class="p-emoji">➕</span>Własny szkielet
+      <span class="p-desc">Pusty z sekcjami do wypełnienia</span>
+    </button>
+  </div>
+
+  <div class="group">
+    <h3>📚 Dokumenty <span id="doc-count" style="color:#3a5cff"></span></h3>
+    <div id="doc-list"></div>
+  </div>
+
+  <div class="group">
+    <h3>📑 Spis treści</h3>
+    <div id="toc"></div>
+  </div>
+
+  <div class="group">
+    <h3>📊 Statystyki</h3>
+    <div id="stats-side">
+      <div class="stat-box"><div class="v" id="s-words">0</div><div class="l">Słowa</div></div>
+      <div class="stat-box"><div class="v" id="s-chars">0</div><div class="l">Znaki</div></div>
+      <div class="stat-box"><div class="v" id="s-lines">0</div><div class="l">Linie</div></div>
+      <div class="stat-box"><div class="v" id="s-read">0min</div><div class="l">Czytanie</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>⚙️ Ustawienia</h3>
+    <div class="row">
+      <button id="theme-btn">🌙 Motyw</button>
+      <button id="focus-btn">🎯 Focus</button>
+    </div>
+    <div class="row" style="align-items:center;margin-top:6px">
+      <span style="font-size:12px;color:#7a7a86;min-width:70px">Czcionka</span>
+      <input type="range" id="font-size" min="11" max="22" step="1" value="14" style="flex:1;accent-color:#3a5cff">
+      <span id="font-size-val" style="font-size:11px;color:#a8a8b3;font-family:ui-monospace,monospace;min-width:28px">14</span>
+    </div>
+    <div style="margin-top:8px"><button id="show-help" style="width:100%;font-size:11px">❓ Dlaczego Markdown?</button></div>
+  </div>
+</aside>
+
+<main>
+  <div id="toolbar">
+    <div class="mode-switch">
+      <button id="btn-simple" title="Tryb prosty — klikaj jak w Wordzie">✏️ Prosty</button>
+      <button id="btn-source" class="active" title="Tryb źródła — widzisz Markdown">📝 Źródło</button>
+    </div>
+    <div class="tb-group" style="margin-left:12px">
+      <button class="tb-btn" data-action="bold" title="Pogrubienie (Ctrl+B)"><b>B</b></button>
+      <button class="tb-btn" data-action="italic" title="Kursywa (Ctrl+I)"><i>I</i></button>
+      <button class="tb-btn" data-action="strike" title="Przekreślenie"><s>S</s></button>
+      <button class="tb-btn" data-action="code" title="Kod inline (Ctrl+E)">&lt;/&gt;</button>
+    </div>
+    <div class="tb-group">
+      <button class="tb-btn" data-action="h1" title="Nagłówek 1">H1</button>
+      <button class="tb-btn" data-action="h2" title="Nagłówek 2">H2</button>
+      <button class="tb-btn" data-action="h3" title="Nagłówek 3">H3</button>
+    </div>
+    <div class="tb-group">
+      <button class="tb-btn" data-action="list-ul" title="Lista punktowana">•—</button>
+      <button class="tb-btn" data-action="list-ol" title="Lista numerowana">1.</button>
+      <button class="tb-btn" data-action="quote" title="Cytat">❝</button>
+    </div>
+    <div class="tb-group">
+      <button class="tb-btn" data-action="link" title="Link (Ctrl+K)">🔗</button>
+      <button class="tb-btn" data-action="table" title="Tabela">▦</button>
+      <button class="tb-btn" data-action="codeblock" title="Blok kodu">◫</button>
+    </div>
+    <div class="tb-group">
+      <button class="tb-btn" data-action="find" title="Znajdź (Ctrl+F)">🔍</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="tb-group">
+      <button class="tb-btn" id="mode-preview" title="Tylko podgląd">👁</button>
+    </div>
+  </div>
+
+  <div id="find-bar">
+    <input type="text" id="find-input" placeholder="Szukaj…">
+    <button id="find-prev" title="Poprzednie">↑</button>
+    <button id="find-next" title="Następne">↓</button>
+    <span class="find-info" id="find-info"></span>
+    <label style="display:flex;gap:4px;align-items:center;font-size:12px;color:#a8a8b3">
+      <input type="checkbox" id="find-case" style="accent-color:#3a5cff"> Aa
+    </label>
+    <input type="text" id="replace-input" placeholder="Zamień na…" style="flex:1;min-width:120px">
+    <button id="replace-one">Zamień</button>
+    <button id="replace-all">Wszystkie</button>
+    <button id="find-close" style="margin-left:auto">✕</button>
+  </div>
+
+  <div id="split">
+    <div id="editor-wrap">
+      <div class="pane-header">
+        <span>Markdown</span>
+        <span class="info" id="cursor-info">1:1</span>
+      </div>
+      <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" wrap="soft"></textarea>
+    </div>
+
+    <div id="simple-wrap">
+      <div class="pane-header">
+        <span>Tryb prosty</span>
+        <span class="info">Kliknij w tekst i pisz</span>
+      </div>
+      <div id="simple-editor" contenteditable="true" spellcheck="true"></div>
+    </div>
+
+    <div id="preview-wrap">
+      <div class="pane-header">
+        <span>Podgląd</span>
+        <span class="info" id="preview-size"></span>
+      </div>
+      <div id="preview"></div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <div class="sb-item">
+      <span id="sb-save" class="saved">✓ Zapisano</span>
+    </div>
+    <div class="sb-item">
+      <span id="sb-chars">0 znaków</span>
+      <span style="color:#3a5cff">·</span>
+      <span id="sb-words">0 słów</span>
+    </div>
+  </div>
+</main>
+
+<!-- ============ MODAL ============ -->
+<div class="modal-backdrop" id="help-modal">
+  <div class="modal">
+    <h2>Dlaczego ten edytor używa Markdowna?</h2>
+    <p class="sub">Krótkie wyjaśnienie — pokazuje się raz, możesz wrócić przyciskiem „Dlaczego Markdown?" w panelu.</p>
+
+    <p><b>Markdown to zwykły tekst z prostymi znacznikami.</b> Zamiast klikać „Pogrubienie" — piszesz <code>**pogrubione**</code>. Zamiast wybierać „Nagłówek 1" — piszesz <code># Nagłówek</code>. Wygląda dziwnie, ale ma trzy konkretne zalety.</p>
+
+    <div class="why">
+      <b>1. Działa wszędzie.</b> Ten sam plik otworzysz w Notatniku, na telefonie, w każdej przeglądarce, w każdym edytorze. Wordowski <code>.docx</code> otworzy się tylko w Wordzie.
+    </div>
+
+    <div class="why">
+      <b>2. Świetnie nadaje się do promptów AI.</b> ChatGPT, Claude, Gemini były uczone na Markdownie. Kiedy piszesz <code>## Zadanie</code>, model rozumie że to sekcja. Kiedy piszesz <code>- punkt 1</code>, wie że to lista. Bez tego wszystko jest jednym ciągiem.
+    </div>
+
+    <div class="why">
+      <b>3. Nie psuje się.</b> Word przy każdej aktualizacji potrafi zjeść formatowanie — listy się rozjeżdżają, nagłówki zmieniają rozmiar. Markdown to zwykły tekst — nie ma się co zepsuć.
+    </div>
+
+    <h3 style="font-size:14px;margin:24px 0 12px;color:#fff">Kiedy używać tego edytora, a kiedy Worda</h3>
+
+    <div class="compare">
+      <div class="yes">
+        <h4>✓ Ten edytor</h4>
+        <ul>
+          <li>Notatki, dokumentacja</li>
+          <li>Prompty do AI</li>
+          <li>Wklejanie do maila, na forum</li>
+          <li>Treści na stronę / bloga</li>
+          <li>Wiele notatek w jednym miejscu</li>
+        </ul>
+      </div>
+      <div class="no">
+        <h4>→ Word / Writer</h4>
+        <ul>
+          <li>Umowy, CV, pisma urzędowe</li>
+          <li>Prace dyplomowe z przypisami</li>
+          <li>Spis treści z numerami stron</li>
+          <li>Wielokolumnowe dokumenty</li>
+          <li>Gdy ktoś wymaga pliku .docx</li>
+        </ul>
+      </div>
+    </div>
+
+    <p style="font-size:13px;color:#a8a8b3;margin-top:20px"><b>Nie musisz znać Markdowna.</b> Kliknij przycisk <b>✏️ Prosty</b> u góry — piszesz wtedy jak w Wordzie, a edytor sam zapisuje Markdown pod spodem.</p>
+
+    <div class="actions">
+      <button id="modal-close">Rozumiem</button>
+      <button class="primary" id="modal-try-simple">Wypróbuj tryb prosty</button>
+      <button class="primary" id="modal-try-prompt">Pokaż szablon promptu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ============================================================
+  // MARKDOWN → HTML (parser)
+  // ============================================================
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function inline(text) {
+    const codeSnippets = [];
+    text = text.replace(/`([^`]+)`/g, (_, c) => {
+      codeSnippets.push(c);
+      return `\x00CODE${codeSnippets.length - 1}\x00`;
+    });
+    text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    text = text.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/__([^_\n]+)__/g, '<strong>$1</strong>');
+    text = text.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+    text = text.replace(/(^|[^\w])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+    text = text.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
+    text = text.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    text = text.replace(/\x00CODE(\d+)\x00/g, (_, i) => `<code>${escapeHtml(codeSnippets[+i])}</code>`);
+    return text;
+  }
+
+  function splitRow(line) {
+    return line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(s => s.trim());
+  }
+
+  function mdToHtml(src) {
+    const lines = src.replace(/\r\n?/g, '\n').split('\n');
+    const out = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      const fence = line.match(/^```(\w*)/);
+      if (fence) {
+        const buf = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) { buf.push(lines[i]); i++; }
+        i++;
+        out.push(`<pre><code>${escapeHtml(buf.join('\n'))}</code></pre>`);
+        continue;
+      }
+
+      const h = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+      if (h) {
+        const lvl = h[1].length;
+        out.push(`<h${lvl}>${inline(h[2])}</h${lvl}>`);
+        i++; continue;
+      }
+
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+
+      if (/^>\s?/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])) {
+          buf.push(lines[i].replace(/^>\s?/, '')); i++;
+        }
+        out.push(`<blockquote>${mdToHtml(buf.join('\n'))}</blockquote>`);
+        continue;
+      }
+
+      if (line.includes('|') && i + 1 < lines.length && /^\s*\|?[\s\-:|]+\|?\s*$/.test(lines[i + 1])) {
+        const heads = splitRow(line);
+        i += 2;
+        const rows = [];
+        while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+          rows.push(splitRow(lines[i])); i++;
+        }
+        let t = '<table><thead><tr>';
+        for (const c of heads) t += `<th>${inline(c)}</th>`;
+        t += '</tr></thead><tbody>';
+        for (const r of rows) {
+          t += '<tr>';
+          for (const c of r) t += `<td>${inline(c)}</td>`;
+          t += '</tr>';
+        }
+        t += '</tbody></table>';
+        out.push(t); continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+          items.push(inline(lines[i].replace(/^\s*[-*+]\s+/, ''))); i++;
+        }
+        out.push('<ul>' + items.map(x => `<li>${x}</li>`).join('') + '</ul>');
+        continue;
+      }
+
+      if (/^\s*\d+\.\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+          items.push(inline(lines[i].replace(/^\s*\d+\.\s+/, ''))); i++;
+        }
+        out.push('<ol>' + items.map(x => `<li>${x}</li>`).join('') + '</ol>');
+        continue;
+      }
+
+      if (!line.trim()) { i++; continue; }
+
+      const buf = [line];
+      i++;
+      while (i < lines.length && lines[i].trim() &&
+             !/^(#{1,6}\s|```|>|\s*[-*+]\s|\s*\d+\.\s)/.test(lines[i])) {
+        buf.push(lines[i]); i++;
+      }
+      out.push(`<p>${inline(buf.join('\n')).replace(/\n/g, '<br>')}</p>`);
+    }
+
+    return out.join('\n');
+  }
+
+  // ============================================================
+  // HTML → MARKDOWN (dla trybu prostego)
+  // ============================================================
+  function htmlToMd(node) {
+    if (node.nodeType === 3) return node.textContent;
+    if (node.nodeType !== 1) return '';
+    const tag = node.tagName.toLowerCase();
+    const children = [...node.childNodes].map(htmlToMd).join('');
+    switch (tag) {
+      case 'h1': return '\n# ' + children + '\n\n';
+      case 'h2': return '\n## ' + children + '\n\n';
+      case 'h3': return '\n### ' + children + '\n\n';
+      case 'h4': return '\n#### ' + children + '\n\n';
+      case 'h5': return '\n##### ' + children + '\n\n';
+      case 'h6': return '\n###### ' + children + '\n\n';
+      case 'p': return children + '\n\n';
+      case 'br': return '  \n';
+      case 'strong': case 'b': return '**' + children + '**';
+      case 'em': case 'i': return '*' + children + '*';
+      case 'del': case 's': case 'strike': case 'u': return '~~' + children + '~~';
+      case 'code':
+        if (node.parentNode && node.parentNode.tagName.toLowerCase() === 'pre') return children;
+        return '`' + children + '`';
+      case 'pre': return '\n```\n' + children.replace(/\n$/, '') + '\n```\n\n';
+      case 'a': return '[' + children + '](' + (node.getAttribute('href') || '') + ')';
+      case 'img': return '![' + (node.getAttribute('alt') || '') + '](' + (node.getAttribute('src') || '') + ')';
+      case 'hr': return '\n---\n\n';
+      case 'blockquote':
+        return '\n' + children.split('\n').map(l => l ? '> ' + l : '>').join('\n') + '\n\n';
+      case 'ul': {
+        const items = [...node.children].filter(c => c.tagName && c.tagName.toLowerCase() === 'li');
+        return '\n' + items.map(li => '- ' + htmlToMd(li).trim()).join('\n') + '\n\n';
+      }
+      case 'ol': {
+        const items = [...node.children].filter(c => c.tagName && c.tagName.toLowerCase() === 'li');
+        return '\n' + items.map((li, i) => (i + 1) + '. ' + htmlToMd(li).trim()).join('\n') + '\n\n';
+      }
+      case 'li': return children;
+      case 'table': {
+        const rows = [...node.querySelectorAll('tr')];
+        if (rows.length === 0) return '';
+        const toCells = (tr) => [...tr.children].map(td => htmlToMd(td).trim());
+        const head = toCells(rows[0]);
+        let md = '\n| ' + head.join(' | ') + ' |\n';
+        md += '|' + head.map(() => '---').join('|') + '|\n';
+        for (let i = 1; i < rows.length; i++) {
+          md += '| ' + toCells(rows[i]).join(' | ') + ' |\n';
+        }
+        return md + '\n';
+      }
+      case 'div': case 'span': case 'section': return children;
+      default: return children;
+    }
+  }
+
+  function cleanMd(md) {
+    return md
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/^\n+/, '')
+      .replace(/\n+$/, '')
+      .split('\n').map(l => l.replace(/[ \t]+$/, '')).join('\n');
+  }
+
+  // ============================================================
+  // DOM
+  // ============================================================
+  const $ = id => document.getElementById(id);
+  const editor = $('editor');
+  const preview = $('preview');
+  const simpleEditor = $('simple-editor');
+  const findBar = $('find-bar');
+  const findInput = $('find-input');
+  const replaceInput = $('replace-input');
+  const findInfo = $('find-info');
+  const docList = $('doc-list');
+  const toc = $('toc');
+
+  // ============================================================
+  // STAN
+  // ============================================================
+  const STORAGE_KEY = 'ctxeditor-text-docs-v2';
+  const SETTINGS_KEY = 'ctxeditor-text-settings-v2';
+  const ACTIVE_KEY = 'ctxeditor-text-active-v2';
+  const HELP_KEY = 'ctxeditor-text-help-shown-v2';
+
+  let docs = [];
+  let activeId = null;
+  let saveTimer = null;
+  let statsTimer = null;
+  let findMatches = [];
+  let findIdx = -1;
+  let currentMode = 'source';     // 'source' | 'simple' | 'preview'
+  let updatingSimple = false;
+
+  // ============================================================
+  // SZABLONY PROMPTÓW
+  // ============================================================
+  const PROMPT_TEMPLATES = {
+    article: `# Rola
+Jesteś doświadczonym pisarzem i redaktorem.
+
+# Zadanie
+Napisz artykuł na temat: [TWÓJ TEMAT]
+
+# Odbiorca
+[Do kogo — np. początkujący, eksperci, ogół]
+
+# Struktura
+1. Wprowadzenie (dlaczego to ważne)
+2. Trzy główne punkty
+3. Praktyczne przykłady
+4. Podsumowanie
+
+# Format
+- Długość: [np. 800–1000 słów]
+- Ton: [np. rzeczowy, ciepły, ekspercki]
+- Język: polski
+
+# Ograniczenia
+- Bez żargonu, chyba że wyjaśnisz
+- Konkretne przykłady zamiast ogólników
+- Bez powtarzania tego samego`,
+
+    summarize: `# Rola
+Jesteś analitykiem specjalizującym się w skracaniu tekstu bez utraty sensu.
+
+# Zadanie
+Streść poniższy tekst.
+
+# Źródło
+[WKLEJ TEKST DO STRESZCZENIA]
+
+# Długość streszczenia
+[Wskaż: 3 zdania / 1 akapit / 10% oryginału]
+
+# Format
+- Najpierw 1 zdanie z główną tezą
+- Potem 3–5 punktów z kluczowymi informacjami
+- Na końcu jedno zdanie z wnioskiem
+
+# Ograniczenia
+- Nie dodawaj nic od siebie
+- Zachowaj liczby i nazwy własne z oryginału`,
+
+    improve: `# Rola
+Jesteś redaktorem językowym z 20-letnim doświadczeniem.
+
+# Zadanie
+Popraw poniższy tekst — ten sam sens, lepsze brzmienie.
+
+# Tekst
+[WKLEJ TEKST DO POPRAWY]
+
+# Co poprawić
+- Płynność zdań
+- Powtarzające się słowa
+- Bierna strona → czynna
+- Usunięcie „wypełniaczy" („tak naprawdę", „w pewnym sensie")
+
+# Format
+1. Poprawiona wersja
+2. Lista zmian z krótkim wyjaśnieniem dlaczego
+
+# Czego NIE zmieniać
+- Znaczenia
+- Faktów
+- Tonu (jeśli był formalny — zostaw formalny)`,
+
+    translate: `# Rola
+Jesteś zawodowym tłumaczem.
+
+# Zadanie
+Przetłumacz poniższy tekst.
+
+# Z
+[JĘZYK ŹRÓDŁOWY — np. polski, angielski]
+
+# Na
+[JĘZYK DOCELOWY]
+
+# Kontekst
+[Gdzie tekst będzie użyty — strona, mail, dokument, social media]
+
+# Ton
+[Formalny / swobodny / techniczny / literacki]
+
+# Tekst
+[WKLEJ TEKST]
+
+# Ograniczenia
+- Zachowaj terminologię techniczną
+- Idiomy przetłumacz naturalnie, nie dosłownie
+- Jeśli słowo nie ma odpowiednika — zostaw oryginał i wyjaśnij w nawiasie`,
+
+    ideas: `# Rola
+Jesteś kreatywnym strategiem z doświadczeniem w burzy mózgów.
+
+# Zadanie
+Wygeneruj pomysły na temat: [TWÓJ TEMAT]
+
+# Ile pomysłów
+[10 / 20 / 30]
+
+# Zakres
+[Konkretnie co ma być — np. tytuły na bloga, funkcje aplikacji, nazwy produktu]
+
+# Format
+Dla każdego pomysłu:
+- Nazwa (max 10 słów)
+- Jedno zdanie wyjaśnienia
+- Trudność wdrożenia (łatwe / średnie / trudne)
+
+# Ograniczenia
+- Pomysły muszą się różnić między sobą
+- Żadnych oczywistości — minimum 30% niestandardowych
+- Bez pomysłów sprzecznych z prawem`,
+
+    code: `# Rola
+Jesteś starszym programistą i code reviewerem.
+
+# Zadanie
+Popraw poniższy kod.
+
+# Język
+[JavaScript / Python / Java / C# / inny]
+
+# Kod
+\`\`\`
+[WKLEJ KOD]
+\`\`\`
+
+# Co sprawdzić
+- Błędy logiczne i potencjalne crashe
+- Bezpieczeństwo (injection, XSS, itp.)
+- Wydajność (niepotrzebne pętle, alokacje)
+- Czytelność (nazwy, komentarze)
+
+# Format odpowiedzi
+1. Lista znalezionych problemów z priorytetem (krytyczne / ważne / drobne)
+2. Poprawiony kod
+3. Krótkie wyjaśnienie zmian
+
+# Ograniczenia
+- Nie przepisuj wszystkiego od zera — popraw co trzeba
+- Zachowaj istniejący styl jeśli jest dobry`,
+
+    explain: `# Rola
+Jesteś nauczycielem, który umie tłumaczyć trudne rzeczy prosto.
+
+# Zadanie
+Wyjaśnij pojęcie: [POJĘCIE]
+
+# Poziom odbiorcy
+[Szkoła podstawowa / liceum / student / specjalista z innej dziedziny]
+
+# Struktura odpowiedzi
+1. Jedno zdanie — co to jest
+2. Analogia z życia codziennego
+3. Jak to działa — krok po kroku
+4. Typowe nieporozumienia
+5. Kiedy się tego używa
+
+# Ograniczenia
+- Bez wzorów matematycznych, chyba że poproszę
+- Każde trudne słowo wyjaśnij od razu
+- Maksymalnie [liczba] zdań na punkt`,
+
+    analyze: `# Rola
+Jesteś analitykiem danych i konsultantem biznesowym.
+
+# Zadanie
+Przeanalizuj poniższe dane i wyciągnij wnioski.
+
+# Dane
+[WKLEJ DANE — tabela, CSV, lista]
+
+# Kontekst
+[Skąd dane, czego dotyczą, jaki okres]
+
+# Pytania
+1. [PYTANIE 1 — np. jaki jest trend]
+2. [PYTANIE 2 — np. co odstaje]
+3. [PYTANIE 3]
+
+# Format
+- Kluczowe obserwacje (3–5 punktów)
+- Co to znaczy w praktyce
+- Rekomendacje (2–3 konkretne działania)
+
+# Ograniczenia
+- Odróżniaj fakty od interpretacji
+- Jeśli danych brakuje — powiedz czego
+- Nie zgaduj — jeśli nie da się odpowiedzieć, powiedz dlaczego`,
+
+    custom: `# Rola
+[Kim ma być AI]
+
+# Zadanie
+[Co ma zrobić — konkretnie]
+
+# Kontekst
+[Informacje pomocne do wykonania zadania]
+
+# Format odpowiedzi
+[Jak ma wyglądać odpowiedź — punkty, akapity, tabela, kod]
+
+# Ograniczenia
+[Czego nie robić, na co uważać]
+
+# Przykład (opcjonalnie)
+[Pokaż jeden przykład tego, co ma być wynikiem]`,
+  };
+
+  // ============================================================
+  // DOKUMENTY
+  // ============================================================
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) docs = JSON.parse(raw);
+    } catch (_) { docs = []; }
+    if (!Array.isArray(docs) || docs.length === 0) {
+      docs = [{
+        id: uid(),
+        title: 'Bez tytułu',
+        content: `# Witaj w edytorze tekstu ctxlibrary
+
+Możesz pisać **w Markdownie** albo przełączyć się na **tryb prosty** (przycisk ✏️ u góry) i pisać jak w Wordzie.
+
+## Szybki start
+
+- **Ctrl+B** — pogrubienie
+- **Ctrl+I** — kursywa
+- **Ctrl+K** — link
+- **Ctrl+F** — szukaj
+- **Ctrl+S** — zapisz
+
+## Szablony promptów
+
+Kliknij dowolny szablon w panelu po lewej — wstawi się gotowa struktura do wypełnienia. Świetnie nadaje się do ChatGPT, Claude i innych.
+
+## Eksport
+
+- **.md** — edytowalny w każdym edytorze, otwiera się wszędzie
+- **.txt** — czysty tekst bez formatowania
+- **.html** — gotowa strona internetowa
+- **PDF** — przez „Drukuj" → „Zapisz jako PDF"
+
+---
+
+Miłej pracy!`,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }];
+    }
+    const savedActive = localStorage.getItem(ACTIVE_KEY);
+    activeId = (savedActive && docs.find(d => d.id === savedActive)) ? savedActive : docs[0].id;
+  }
+
+  function saveToStorage() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(docs)); } catch (_) {}
+    try { localStorage.setItem(ACTIVE_KEY, activeId); } catch (_) {}
+  }
+
+  function getActiveDoc() { return docs.find(d => d.id === activeId); }
+
+  function deriveTitle(content) {
+    const firstHeading = content.match(/^#\s+(.+)$/m);
+    if (firstHeading) return firstHeading[1].trim().slice(0, 40);
+    const firstLine = content.split('\n').find(l => l.trim());
+    if (firstLine) return firstLine.trim().slice(0, 40);
+    return 'Bez tytułu';
+  }
+
+  function renderDocList() {
+    docList.innerHTML = '';
+    docs.sort((a, b) => b.updatedAt - a.updatedAt);
+    for (const doc of docs) {
+      const item = document.createElement('div');
+      item.className = 'doc-item' + (doc.id === activeId ? ' active' : '');
+      const wc = (doc.content.match(/\S+/g) || []).length;
+      const when = new Date(doc.updatedAt);
+      const timeStr = when.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' }) + ' ' +
+                     when.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+      item.innerHTML = `
+        <div class="doc-title">${escapeHtml(doc.title || 'Bez tytułu')}<small>${wc} słów · ${timeStr}</small></div>
+        <button class="doc-del" title="Usuń">✕</button>
+      `;
+      item.onclick = (e) => {
+        if (e.target.classList.contains('doc-del')) return;
+        switchDoc(doc.id);
+      };
+      item.querySelector('.doc-del').onclick = (e) => {
+        e.stopPropagation();
+        if (docs.length === 1) { alert('Nie możesz usunąć ostatniego dokumentu.'); return; }
+        if (!confirm(`Usunąć dokument „${doc.title}"?`)) return;
+        docs = docs.filter(d => d.id !== doc.id);
+        if (activeId === doc.id) activeId = docs[0].id;
+        saveToStorage();
+        renderDocList();
+        loadActiveDoc();
+      };
+      docList.appendChild(item);
+    }
+    $('doc-count').textContent = `(${docs.length})`;
+  }
+
+  function switchDoc(id) {
+    saveCurrentToMemory();
+    activeId = id;
+    saveToStorage();
+    renderDocList();
+    loadActiveDoc();
+  }
+
+  function saveCurrentToMemory() {
+    const doc = getActiveDoc();
+    if (!doc) return;
+    doc.content = editor.value;
+    doc.title = deriveTitle(doc.content);
+    doc.updatedAt = Date.now();
+  }
+
+  function loadActiveDoc() {
+    const doc = getActiveDoc();
+    if (!doc) return;
+    editor.value = doc.content;
+    updatePreview();
+    updateSimpleFromSource();
+    updateStats();
+    updateToc();
+    updateCursorInfo();
+    renderDocList();
+    updateSaveStatus(true);
+  }
+
+  function newDoc() {
+    saveCurrentToMemory();
+    const doc = { id: uid(), title: 'Bez tytułu', content: '', createdAt: Date.now(), updatedAt: Date.now() };
+    docs.push(doc);
+    activeId = doc.id;
+    saveToStorage();
+    renderDocList();
+    loadActiveDoc();
+    if (currentMode === 'simple') simpleEditor.focus();
+    else editor.focus();
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+  function updatePreview() {
+    const html = mdToHtml(editor.value);
+    preview.innerHTML = html;
+    $('preview-size').textContent = `${editor.value.length.toLocaleString('pl-PL')} znaków`;
+  }
+
+  function updateSimpleFromSource() {
+    if (currentMode !== 'simple') return;
+    updatingSimple = true;
+    simpleEditor.innerHTML = mdToHtml(editor.value);
+    updatingSimple = false;
+  }
+
+  function updateSourceFromSimple() {
+    if (updatingSimple) return;
+    let md = '';
+    for (const child of simpleEditor.childNodes) {
+      md += htmlToMd(child);
+    }
+    md = cleanMd(md);
+    if (md === editor.value) return;
+    editor.value = md;
+    updatePreview();
+    updateStats();
+    updateToc();
+    scheduleAutosave();
+  }
+
+  // ============================================================
+  // TRYBY
+  // ============================================================
+  function setMode(mode) {
+    currentMode = mode;
+    document.body.classList.remove('mode-editor', 'mode-split', 'mode-preview', 'mode-simple');
+    if (mode === 'source') {
+      document.body.classList.add('mode-split');
+    } else if (mode === 'simple') {
+      document.body.classList.add('mode-simple');
+      updateSimpleFromSource();
+    } else if (mode === 'preview') {
+      document.body.classList.add('mode-preview');
+    }
+
+    $('btn-simple').classList.toggle('active', mode === 'simple');
+    $('btn-source').classList.toggle('active', mode === 'source');
+    $('mode-preview').classList.toggle('active', mode === 'preview');
+
+    if (mode === 'source') editor.focus();
+    if (mode === 'simple') simpleEditor.focus();
+    saveSettings();
+  }
+
+  $('btn-simple').onclick = () => setMode('simple');
+  $('btn-source').onclick = () => setMode('source');
+  $('mode-preview').onclick = () => setMode(currentMode === 'preview' ? 'source' : 'preview');
+
+  // ============================================================
+  // PROSTY — nasłuch zmian
+  // ============================================================
+  simpleEditor.addEventListener('input', () => {
+    if (updatingSimple) return;
+    // debounce — bo htmlToMd na całym drzewie jest drogie
+    clearTimeout(simpleEditor._timer);
+    simpleEditor._timer = setTimeout(() => {
+      updateSourceFromSimple();
+      updateCursorInfo();
+    }, 200);
+  });
+
+  simpleEditor.addEventListener('paste', (e) => {
+    // wklej jako czysty tekst, żeby nie przynosić formatowania z Worda
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
+
+  // ============================================================
+  // TOOLBAR — działa w obu trybach
+  // ============================================================
+  function applyToSimple(cmd, value = null) {
+    simpleEditor.focus();
+    document.execCommand(cmd, false, value);
+    setTimeout(() => updateSourceFromSimple(), 0);
+  }
+
+  function inSimple() { return currentMode === 'simple'; }
+
+  function surround(prefix, suffix, placeholder) {
+    if (inSimple()) {
+      // w trybie prostym używamy execCommand
+      const cmd = prefix === '**' ? 'bold' : prefix === '*' ? 'italic' :
+                  prefix === '~~' ? 'strikeThrough' : prefix === '`' ? null : null;
+      if (cmd) { applyToSimple(cmd); return; }
+      // fallback: wstaw surowy tekst
+      document.execCommand('insertText', false, prefix + (placeholder || '') + suffix);
+      setTimeout(() => updateSourceFromSimple(), 0);
+      return;
+    }
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const sel = editor.value.slice(start, end);
+    const before = editor.value.slice(0, start);
+    const after = editor.value.slice(end);
+    if (!sel) {
+      const insert = prefix + (placeholder || '') + suffix;
+      editor.value = before + insert + after;
+      editor.setSelectionRange(start + prefix.length, start + prefix.length + (placeholder || '').length);
+    } else {
+      const insert = prefix + sel + suffix;
+      editor.value = before + insert + after;
+      editor.setSelectionRange(start + prefix.length, start + prefix.length + sel.length);
+    }
+    onInput();
+    editor.focus();
+  }
+
+  function toggleLinePrefix(prefix) {
+    if (inSimple()) {
+      const cmd = prefix === '# ' ? 'formatBlock' : prefix === '## ' ? 'formatBlock' :
+                  prefix === '### ' ? 'formatBlock' : prefix === '> ' ? 'formatBlock' :
+                  prefix === '- ' ? 'insertUnorderedList' : prefix === '1. ' ? 'insertOrderedList' : null;
+      if (prefix === '- ') { applyToSimple('insertUnorderedList'); return; }
+      if (prefix === '1. ') { applyToSimple('insertOrderedList'); return; }
+      if (prefix === '> ') { applyToSimple('formatBlock', 'blockquote'); return; }
+      if (prefix === '# ') { applyToSimple('formatBlock', 'h1'); return; }
+      if (prefix === '## ') { applyToSimple('formatBlock', 'h2'); return; }
+      if (prefix === '### ') { applyToSimple('formatBlock', 'h3'); return; }
+      return;
+    }
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const value = editor.value;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    let lineEnd = value.indexOf('\n', end);
+    if (lineEnd === -1) lineEnd = value.length;
+    const block = value.slice(lineStart, lineEnd);
+    const lines = block.split('\n');
+    const allHave = lines.every(l => l.startsWith(prefix));
+    const newBlock = lines.map(l => allHave ? l.replace(prefix, '') : prefix + l).join('\n');
+    editor.value = value.slice(0, lineStart) + newBlock + value.slice(lineEnd);
+    editor.setSelectionRange(lineStart, lineStart + newBlock.length);
+    onInput();
+    editor.focus();
+  }
+
+  function insertBlock(text) {
+    if (inSimple()) {
+      // wyczyść i wstaw jako HTML
+      const html = mdToHtml(text);
+      document.execCommand('insertHTML', false, html);
+      setTimeout(() => updateSourceFromSimple(), 0);
+      return;
+    }
+    const pos = editor.selectionStart;
+    const value = editor.value;
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    const needsBefore = before.length > 0 && !before.endsWith('\n\n');
+    const needsAfter = after.length > 0 && !after.startsWith('\n');
+    const prefix = needsBefore ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+    const suffix = needsAfter ? '\n' : '';
+    const insert = prefix + text + suffix;
+    editor.value = before + insert + after;
+    editor.setSelectionRange(pos + insert.length, pos + insert.length);
+    onInput();
+    editor.focus();
+  }
+
+  const ACTIONS = {
+    bold:      () => surround('**', '**', 'tekst'),
+    italic:    () => surround('*', '*', 'kursywa'),
+    strike:    () => surround('~~', '~~', 'przekreślone'),
+    code:      () => surround('`', '`', 'kod'),
+    h1:        () => toggleLinePrefix('# '),
+    h2:        () => toggleLinePrefix('## '),
+    h3:        () => toggleLinePrefix('### '),
+    'list-ul': () => toggleLinePrefix('- '),
+    'list-ol': () => toggleLinePrefix('1. '),
+    quote:     () => toggleLinePrefix('> '),
+    link:      () => {
+      if (inSimple()) {
+        const url = prompt('Adres linku:', 'https://');
+        if (url) applyToSimple('createLink', url);
+        return;
+      }
+      const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+      surround('[', '](https://)', sel || 'tekst linku');
+    },
+    table:     () => insertBlock('| Kolumna 1 | Kolumna 2 | Kolumna 3 |\n|---|---|---|\n| a | b | c |\n| d | e | f |'),
+    codeblock: () => insertBlock('```\n// kod\n```'),
+    find:      () => toggleFind(),
+  };
+
+  document.querySelectorAll('[data-action]').forEach(btn => {
+    btn.onclick = () => {
+      const action = btn.dataset.action;
+      if (ACTIONS[action]) ACTIONS[action]();
+    };
+  });
+
+  // ============================================================
+  // SZABLONY PROMPTÓW — wstawianie
+  // ============================================================
+  document.querySelectorAll('.prompt-btn').forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.dataset.template;
+      const template = PROMPT_TEMPLATES[key];
+      if (!template) return;
+
+      // pytanie: zamienić czy dopisać?
+      const hasContent = editor.value.trim().length > 0;
+      let action = 'insert';
+      if (hasContent) {
+        const choice = prompt(
+          'Wstawić szablon?\n\n' +
+          '1 — zamień całą treść\n' +
+          '2 — dopisz na końcu\n' +
+          '3 — anuluj\n\n' +
+          'Wpisz 1, 2 lub 3:',
+          '1'
+        );
+        if (choice === '3' || choice === null) return;
+        if (choice === '2') action = 'append';
+      }
+
+      if (action === 'append' && editor.value.trim()) {
+        editor.value = editor.value.replace(/\s+$/, '') + '\n\n---\n\n' + template;
+      } else {
+        editor.value = template;
+      }
+
+      // przełącz na tryb źródła, żeby było widać co się wstawiło
+      setMode('source');
+      updatePreview();
+      updateSimpleFromSource();
+      updateStats();
+      updateToc();
+      scheduleAutosave();
+
+      // ustaw kursor w pierwszym [nawiasie]
+      const firstBracket = editor.value.indexOf('[');
+      if (firstBracket >= 0) {
+        editor.focus();
+        const closeBracket = editor.value.indexOf(']', firstBracket);
+        editor.setSelectionRange(firstBracket + 1, closeBracket > firstBracket ? closeBracket : firstBracket + 1);
+      }
+    };
+  });
+
+  // ============================================================
+  // STATYSTYKI
+  // ============================================================
+  function updateStats() {
+    const t = editor.value;
+    const words = (t.match(/\S+/g) || []).length;
+    const chars = t.length;
+    const lines = t.split('\n').length;
+    const readMin = Math.max(1, Math.round(words / 200));
+    $('s-words').textContent = words.toLocaleString('pl-PL');
+    $('s-chars').textContent = chars.toLocaleString('pl-PL');
+    $('s-lines').textContent = lines.toLocaleString('pl-PL');
+    $('s-read').textContent = readMin + 'min';
+    $('sb-words').textContent = words.toLocaleString('pl-PL') + ' słów';
+    $('sb-chars').textContent = chars.toLocaleString('pl-PL') + ' znaków';
+  }
+
+  // ============================================================
+  // SPIS TREŚCI
+  // ============================================================
+  function updateToc() {
+    const lines = editor.value.split('\n');
+    toc.innerHTML = '';
+    lines.forEach((line, idx) => {
+      const m = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+      if (!m) return;
+      const lvl = m[1].length;
+      const item = document.createElement('div');
+      item.className = 'toc-item h' + lvl;
+      item.textContent = m[2];
+      item.onclick = () => {
+        let pos = 0;
+        for (let i = 0; i < idx; i++) pos += lines[i].length + 1;
+        if (currentMode === 'simple') {
+          // znajdź odpowiedni nagłówek w simpleEditor
+          const headings = simpleEditor.querySelectorAll('h1, h2, h3, h4, h5, h6');
+          const targetText = m[2];
+          for (const h of headings) {
+            if (h.textContent === targetText) { h.scrollIntoView({ block: 'start' }); break; }
+          }
+        } else {
+          editor.focus();
+          editor.setSelectionRange(pos, pos);
+          const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 22;
+          editor.scrollTop = Math.max(0, (idx - 3) * lineHeight);
+        }
+      };
+      toc.appendChild(item);
+    });
+  }
+
+  // ============================================================
+  // CURSOR INFO
+  // ============================================================
+  function updateCursorInfo() {
+    if (currentMode === 'simple') {
+      $('cursor-info').textContent = 'tryb prosty';
+      return;
+    }
+    const pos = editor.selectionStart;
+    const before = editor.value.slice(0, pos);
+    const line = (before.match(/\n/g) || []).length + 1;
+    const col = pos - before.lastIndexOf('\n');
+    const selLen = editor.selectionEnd - editor.selectionStart;
+    $('cursor-info').textContent = selLen > 0
+      ? `zaznaczono ${selLen} znaków`
+      : `${line}:${col}`;
+  }
+
+  // ============================================================
+  // AUTOSAVE
+  // ============================================================
+  function updateSaveStatus(saved) {
+    const el = $('sb-save');
+    if (saved) { el.textContent = '✓ Zapisano'; el.className = 'saved'; }
+    else { el.textContent = '● Niezapisane'; el.className = 'unsaved'; }
+  }
+
+  function scheduleAutosave() {
+    updateSaveStatus(false);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveCurrentToMemory();
+      saveToStorage();
+      updateSaveStatus(true);
+      renderDocList();
+    }, 800);
+  }
+
+  // ============================================================
+  // FIND & REPLACE
+  // ============================================================
+  function toggleFind() {
+    if (findBar.classList.contains('visible')) {
+      findBar.classList.remove('visible');
+      editor.focus();
+      return;
+    }
+    findBar.classList.add('visible');
+    findInput.focus();
+    findInput.select();
+    doFind();
+  }
+
+  function doFind() {
+    const term = findInput.value;
+    findMatches = [];
+    findIdx = -1;
+    if (!term) { findInfo.textContent = ''; return; }
+    const text = editor.value;
+    const cs = $('find-case').checked;
+    const t = cs ? text : text.toLowerCase();
+    const q = cs ? term : term.toLowerCase();
+    let pos = 0;
+    while (pos <= t.length) {
+      const idx = t.indexOf(q, pos);
+      if (idx === -1) break;
+      findMatches.push(idx);
+      pos = idx + q.length;
+    }
+    findInfo.textContent = findMatches.length === 0 ? 'brak' : `${findMatches.length} trafień`;
+    if (findMatches.length > 0) {
+      const sel = editor.selectionStart;
+      const next = findMatches.findIndex(i => i >= sel);
+      findIdx = next >= 0 ? next : 0;
+      highlightFind();
+    }
+  }
+
+  function highlightFind() {
+    if (findIdx < 0 || findIdx >= findMatches.length) return;
+    const idx = findMatches[findIdx];
+    const len = findInput.value.length;
+    editor.focus();
+    editor.setSelectionRange(idx, idx + len);
+    const line = (editor.value.slice(0, idx).match(/\n/g) || []).length;
+    const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 22;
+    editor.scrollTop = Math.max(0, (line - 4) * lineHeight);
+    findInfo.textContent = `${findIdx + 1} / ${findMatches.length}`;
+  }
+
+  function findNext(dir) {
+    if (findMatches.length === 0) { doFind(); return; }
+    findIdx = (findIdx + dir + findMatches.length) % findMatches.length;
+    highlightFind();
+  }
+
+  function replaceOne() {
+    if (findIdx < 0 || findIdx >= findMatches.length) return;
+    const idx = findMatches[findIdx];
+    const len = findInput.value.length;
+    const value = editor.value;
+    editor.value = value.slice(0, idx) + replaceInput.value + value.slice(idx + len);
+    onInput();
+    const newCursor = idx + replaceInput.value.length;
+    editor.setSelectionRange(newCursor, newCursor);
+    doFind();
+  }
+
+  function replaceAll() {
+    const term = findInput.value;
+    if (!term) return;
+    const cs = $('find-case').checked;
+    const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), cs ? 'g' : 'gi');
+    const before = editor.value;
+    const count = (before.match(re) || []).length;
+    editor.value = before.replace(re, replaceInput.value);
+    onInput();
+    findInfo.textContent = `zamieniono ${count}`;
+  }
+
+  findInput.addEventListener('input', doFind);
+  $('find-case').addEventListener('change', doFind);
+  $('find-next').onclick = () => findNext(1);
+  $('find-prev').onclick = () => findNext(-1);
+  $('replace-one').onclick = replaceOne;
+  $('replace-all').onclick = replaceAll;
+  $('find-close').onclick = () => { findBar.classList.remove('visible'); editor.focus(); };
+  findInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); findNext(e.shiftKey ? -1 : 1); }
+    if (e.key === 'Escape') { findBar.classList.remove('visible'); editor.focus(); }
+  });
+
+  // ============================================================
+  // IMPORT / EKSPORT
+  // ============================================================
+  $('open-file').onclick = () => $('file-input').click();
+  $('file-input').onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    saveCurrentToMemory();
+    let content = text;
+    if (file.name.match(/\.html?$/i)) {
+      const m = text.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+      if (m) content = m[1].replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+    const doc = { id: uid(), title: file.name.replace(/\.[^.]+$/, ''), content, createdAt: Date.now(), updatedAt: Date.now() };
+    docs.push(doc); activeId = doc.id;
+    saveToStorage(); renderDocList(); loadActiveDoc();
+    $('file-input').value = '';
+  };
+
+  function download(name, content, mime) {
+    const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  function currentName(ext) {
+    const doc = getActiveDoc();
+    const base = (doc.title || 'bez-tytulu').replace(/[^\w\u00c0-\u017f\-]+/g, '-').slice(0, 60);
+    return base + '.' + ext;
+  }
+
+  $('save-md').onclick = () => { download(currentName('md'), editor.value, 'text/markdown'); updateSaveStatus(true); };
+  $('save-txt').onclick = () => download(currentName('txt'), editor.value, 'text/plain');
+  $('save-html').onclick = () => {
+    const html = `<!DOCTYPE html>
+<html lang="pl">
+<head><meta charset="UTF-8"><title>${escapeHtml(getActiveDoc().title)}</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; line-height: 1.7; color: #222; }
+  h1, h2, h3 { line-height: 1.3; } h1 { border-bottom: 1px solid #ddd; padding-bottom: .3em; }
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
+  pre { background: #f5f5f5; padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  blockquote { border-left: 3px solid #3a5cff; padding: 4px 16px; color: #555; background: #f8f9ff; }
+  table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f5f5f5; } img { max-width: 100%; }
+</style></head><body>${mdToHtml(editor.value)}</body></html>`;
+    download(currentName('html'), html, 'text/html');
+  };
+  $('print-btn').onclick = () => {
+    const html = mdToHtml(editor.value);
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>${escapeHtml(getActiveDoc().title)}</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 720px; margin: 40px auto; padding: 0 20px; line-height: 1.75; color: #222; }
+  h1 { border-bottom: 1px solid #ccc; padding-bottom: .3em; }
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: .9em; }
+  pre { background: #f5f5f5; padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  blockquote { border-left: 3px solid #666; padding: 4px 16px; color: #555; font-style: italic; }
+  table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+  th { background: #f0f0f0; }
+  @media print { body { margin: 0; } }
+</style></head><body>${html}</body></html>`);
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 300);
+  };
+
+  $('new-doc').onclick = newDoc;
+
+  // ============================================================
+  // USTAWIENIA
+  // ============================================================
+  function loadSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      if (s.theme === 'light') document.body.classList.add('light');
+      if (s.fontSize) {
+        editor.style.fontSize = s.fontSize + 'px';
+        simpleEditor.style.fontSize = s.fontSize + 'px';
+        $('font-size').value = s.fontSize;
+        $('font-size-val').textContent = s.fontSize;
+      }
+      if (s.mode && s.mode !== 'source') setTimeout(() => setMode(s.mode), 0);
+    } catch (_) {}
+  }
+  function saveSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+        theme: document.body.classList.contains('light') ? 'light' : 'dark',
+        fontSize: +$('font-size').value,
+        mode: currentMode,
+      }));
+    } catch (_) {}
+  }
+
+  $('theme-btn').onclick = () => {
+    document.body.classList.toggle('light');
+    $('theme-btn').textContent = document.body.classList.contains('light') ? '☀️ Motyw' : '🌙 Motyw';
+    saveSettings();
+  };
+  $('focus-btn').onclick = () => document.body.classList.toggle('focus');
+  $('font-size').oninput = e => {
+    editor.style.fontSize = e.target.value + 'px';
+    simpleEditor.style.fontSize = e.target.value + 'px';
+    $('font-size-val').textContent = e.target.value;
+    saveSettings();
+  };
+
+  // ============================================================
+  // MODAL — Dlaczego Markdown
+  // ============================================================
+  function showHelpModal() {
+    $('help-modal').classList.add('visible');
+  }
+  function hideHelpModal() {
+    $('help-modal').classList.remove('visible');
+    try { localStorage.setItem(HELP_KEY, '1'); } catch (_) {}
+  }
+  $('modal-close').onclick = hideHelpModal;
+  $('modal-try-simple').onclick = () => {
+    hideHelpModal();
+    setMode('simple');
+  };
+  $('modal-try-prompt').onclick = () => {
+    hideHelpModal();
+    // wstaw przykładowy szablon
+    const btn = document.querySelector('.prompt-btn[data-template="article"]');
+    if (btn) btn.click();
+  };
+  $('show-help').onclick = showHelpModal;
+  $('help-modal').addEventListener('click', e => {
+    if (e.target.id === 'help-modal') hideHelpModal();
+  });
+
+  // pierwszy raz — pokaż modal
+  function checkFirstVisit() {
+    try {
+      if (!localStorage.getItem(HELP_KEY)) {
+        setTimeout(showHelpModal, 400);
+      }
+    } catch (_) {}
+  }
+
+  // ============================================================
+  // EDITOR EVENTY (tryb źródła)
+  // ============================================================
+  function onInput() {
+    updatePreview();
+    updateSimpleFromSource();
+    scheduleAutosave();
+    clearTimeout(statsTimer);
+    statsTimer = setTimeout(() => { updateStats(); updateToc(); }, 400);
+  }
+
+  editor.addEventListener('input', () => { onInput(); updateCursorInfo(); });
+  editor.addEventListener('keyup', updateCursorInfo);
+  editor.addEventListener('click', updateCursorInfo);
+  editor.addEventListener('select', updateCursorInfo);
+
+  editor.addEventListener('keydown', e => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'b') { e.preventDefault(); ACTIONS.bold(); return; }
+    if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); ACTIONS.italic(); return; }
+    if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); ACTIONS.link(); return; }
+    if (mod && e.key.toLowerCase() === 'e') { e.preventDefault(); ACTIONS.code(); return; }
+    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); $('save-md').click(); return; }
+    if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); $('file-input').click(); return; }
+    if (mod && e.key.toLowerCase() === 'n') { e.preventDefault(); newDoc(); return; }
+    if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFind(); return; }
+    if (mod && e.key === '1') { e.preventDefault(); ACTIONS.h1(); return; }
+    if (mod && e.key === '2') { e.preventDefault(); ACTIONS.h2(); return; }
+    if (mod && e.key === '3') { e.preventDefault(); ACTIONS.h3(); return; }
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = editor.selectionStart;
+      const value = editor.value;
+      editor.value = value.slice(0, start) + '    ' + value.slice(start);
+      editor.setSelectionRange(start + 4, start + 4);
+      onInput();
+      return;
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const pos = editor.selectionStart;
+      const before = editor.value.slice(0, pos);
+      const lineStart = before.lastIndexOf('\n') + 1;
+      const line = before.slice(lineStart);
+      const ulMatch = line.match(/^(\s*)([-*+])\s+(.*)$/);
+      const olMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+      if (ulMatch && ulMatch[3].trim() === '') {
+        e.preventDefault();
+        editor.value = editor.value.slice(0, lineStart) + editor.value.slice(pos);
+        editor.setSelectionRange(lineStart, lineStart);
+        onInput(); return;
+      }
+      if (olMatch && olMatch[3].trim() === '') {
+        e.preventDefault();
+        editor.value = editor.value.slice(0, lineStart) + editor.value.slice(pos);
+        editor.setSelectionRange(lineStart, lineStart);
+        onInput(); return;
+      }
+      if (ulMatch) {
+        e.preventDefault();
+        const insert = '\n' + ulMatch[1] + ulMatch[2] + ' ';
+        editor.value = before + insert + editor.value.slice(editor.selectionEnd);
+        editor.setSelectionRange(pos + insert.length, pos + insert.length);
+        onInput(); return;
+      }
+      if (olMatch) {
+        e.preventDefault();
+        const insert = '\n' + olMatch[1] + (+olMatch[2] + 1) + '. ';
+        editor.value = before + insert + editor.value.slice(editor.selectionEnd);
+        editor.setSelectionRange(pos + insert.length, pos + insert.length);
+        onInput(); return;
+      }
+    }
+  });
+
+  editor.addEventListener('scroll', () => {
+    if (currentMode !== 'source') return;
+    const max = editor.scrollHeight - editor.clientHeight;
+    if (max > 0) {
+      const pct = editor.scrollTop / max;
+      const pmax = preview.scrollHeight - preview.clientHeight;
+      preview.scrollTop = pct * pmax;
+    }
+  });
+
+  // ============================================================
+  // KLAWIATURA GLOBALNA (dla trybu simple)
+  // ============================================================
+  document.addEventListener('keydown', e => {
+    // tylko gdy focus jest w simpleEditor — obsługa Ctrl+F itd.
+    if (!simpleEditor.contains(document.activeElement) && document.activeElement !== simpleEditor) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFind(); }
+    if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); $('save-md').click(); }
+    if (mod && e.key.toLowerCase() === 'b') { e.preventDefault(); applyToSimple('bold'); }
+    if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); applyToSimple('italic'); }
+  });
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  loadSettings();
+  loadFromStorage();
+  renderDocList();
+  loadActiveDoc();
+  updateStats();
+  updateToc();
+  setMode('source');
+  editor.focus();
+  checkFirstVisit();
+
+  window.addEventListener('beforeunload', () => {
+    saveCurrentToMemory();
+    saveToStorage();
+  });
+})();
+</script>
+</body>
+</html>
